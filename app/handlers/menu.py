@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from app.db.session import SessionLocal
 from app.keyboards.learn_menu import learn_menu
 from app.keyboards.main_menu import main_menu
+from app.models.topic import Topic
 from app.models.word import Word
 
 router = Router()
@@ -15,6 +16,7 @@ router = Router()
 class AddWordForm(StatesGroup):
     georgian = State()
     russian = State()
+    topic = State()
 
 
 class LearnWordForm(StatesGroup):
@@ -60,12 +62,36 @@ async def add_word_georgian_handler(message: Message, state: FSMContext) -> None
 
 @router.message(AddWordForm.russian)
 async def add_word_russian_handler(message: Message, state: FSMContext) -> None:
+    await state.update_data(russian=message.text.strip())
+    await state.set_state(AddWordForm.topic)
+    await message.answer("Введите тему слова (или '-' чтобы пропустить):")
+
+
+@router.message(AddWordForm.topic)
+async def add_word_topic_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     georgian = data["georgian"]
-    russian = message.text.strip()
+    russian = data["russian"]
+    topic_name = message.text.strip()
 
     async with SessionLocal() as session:
-        word = Word(georgian=georgian, russian=russian)
+        existing_result = await session.execute(select(Word).where(Word.georgian == georgian))
+        existing_word = existing_result.scalar_one_or_none()
+        if existing_word is not None:
+            await state.clear()
+            await message.answer("Такое слово уже есть в словаре", reply_markup=main_menu)
+            return
+
+        topic = None
+        if topic_name != "-":
+            topic_result = await session.execute(select(Topic).where(Topic.name == topic_name))
+            topic = topic_result.scalar_one_or_none()
+            if topic is None:
+                topic = Topic(name=topic_name)
+                session.add(topic)
+                await session.flush()
+
+        word = Word(georgian=georgian, russian=russian, topic_id=topic.id if topic else None)
         session.add(word)
         await session.commit()
 
