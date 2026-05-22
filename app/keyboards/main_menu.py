@@ -2,14 +2,13 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 
 def get_main_menu(is_admin_user: bool) -> ReplyKeyboardMarkup:
-    first_row = [KeyboardButton(text="📚 Учить слова")]
+    keyboard: list[list[KeyboardButton]] = [[KeyboardButton(text="📚 Учить слова")]]
     if is_admin_user:
-        first_row.append(KeyboardButton(text="➕ Добавить слово"))
+        keyboard[0].append(KeyboardButton(text="➕ Добавить слово"))
+        keyboard.append([KeyboardButton(text="📥 Импорт слов"), KeyboardButton(text="✏️ Редактировать слово")])
+        keyboard.append([KeyboardButton(text="📊 Статистика"), KeyboardButton(text="🔥 Топ сложных слов")])
+        keyboard.append([KeyboardButton(text="⚙️ Настройки")])
+    else:
+        keyboard.append([KeyboardButton(text="📊 Статистика"), KeyboardButton(text="⚙️ Настройки")])
 
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            first_row,
-            [KeyboardButton(text="📊 Статистика"), KeyboardButton(text="⚙️ Настройки")],
-        ],
-        resize_keyboard=True,
-    )
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)

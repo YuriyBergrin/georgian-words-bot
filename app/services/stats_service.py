@@ -67,3 +67,19 @@ class StatsService:
             "total_correct": total_correct,
             "total_wrong": total_wrong,
         }
+
+    async def get_hard_words(self, limit: int = 10) -> list[tuple[str, str, int, int]]:
+        result = await self.session.execute(
+            select(
+                Word.georgian,
+                Word.russian,
+                func.coalesce(func.sum(UserWordProgress.wrong_count), 0).label("wrong_sum"),
+                func.coalesce(func.sum(UserWordProgress.correct_count), 0).label("correct_sum"),
+            )
+            .join(UserWordProgress, UserWordProgress.word_id == Word.id)
+            .group_by(Word.id, Word.georgian, Word.russian)
+            .having(func.coalesce(func.sum(UserWordProgress.wrong_count), 0) > 0)
+            .order_by(func.coalesce(func.sum(UserWordProgress.wrong_count), 0).desc(), Word.georgian.asc())
+            .limit(limit)
+        )
+        return [(g, r, w, c) for g, r, w, c in result.all()]

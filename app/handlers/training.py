@@ -2,11 +2,14 @@ import random
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.types import Message
 from sqlalchemy import select
 
 from app.db.session import SessionLocal
+from app.handlers.states import LearnWordForm
+from app.handlers.common_helpers import normalize_text
+from app.keyboards.learn_menu import learn_menu
+from app.keyboards.main_menu import get_main_menu
 from app.keyboards.training import (
     BACK_TO_MENU_TEXT,
     REPEAT_TOPIC_TEXT,
@@ -17,43 +20,15 @@ from app.keyboards.training import (
     training_mode_menu,
     translation_options_menu,
 )
-from app.keyboards.learn_menu import learn_menu
-from app.keyboards.main_menu import get_main_menu
 from app.models.word import Word
 from app.services.admin_service import is_admin
-from app.services.stats_service import StatsService
 from app.services.topic_service import TopicService
 from app.services.training_service import TrainingService
-from app.services.word_service import WordService
 
 router = Router()
-CANCEL_ADD_WORD_TEXT = "❌ Отмена"
 
 
-class AddWordForm(StatesGroup):
-    georgian = State()
-    russian = State()
-    topic = State()
-
-
-class LearnWordForm(StatesGroup):
-    mode = State()
-    topic = State()
-    answer = State()
-
-
-def _normalize_text(value: str) -> str:
-    return " ".join(value.split()).lower()
-
-
-def _add_word_cancel_menu() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=CANCEL_ADD_WORD_TEXT)]],
-        resize_keyboard=True,
-    )
-
-
-async def _send_random_word(message: Message, state: FSMContext) -> None:
+async def send_random_word(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     selected_topic = data.get("selected_topic")
     repeat_word_id = data.get("repeat_word_id")
@@ -160,7 +135,7 @@ async def learn_words_handler(message: Message, state: FSMContext) -> None:
 @router.message(LearnWordForm.mode, F.text == TRAIN_ALL_WORDS_TEXT)
 async def learn_all_words_mode_handler(message: Message, state: FSMContext) -> None:
     await state.update_data(selected_topic=None)
-    await _send_random_word(message, state)
+    await send_random_word(message, state)
 
 
 @router.message(LearnWordForm.mode, F.text == TRAIN_BY_TOPIC_TEXT)
@@ -195,7 +170,7 @@ async def learn_topic_selected_handler(message: Message, state: FSMContext) -> N
         return
 
     await state.update_data(selected_topic=topic_name)
-    await _send_random_word(message, state)
+    await send_random_word(message, state)
 
 
 @router.message(LearnWordForm.mode, F.text == BACK_TO_MENU_TEXT)
@@ -224,68 +199,7 @@ async def repeat_topic_handler(message: Message, state: FSMContext) -> None:
         await training_service.reset_topic_for_repeat(user_id=user.id, topic=selected_topic)
         await session.commit()
 
-    await _send_random_word(message, state)
-
-
-@router.message(F.text == "➕ Добавить слово")
-async def add_word_handler(message: Message, state: FSMContext) -> None:
-    if not is_admin(message.from_user.id):
-        await state.clear()
-        await message.answer(
-            "Эта функция доступна только администратору",
-            reply_markup=get_main_menu(False),
-        )
-        return
-
-    await state.set_state(AddWordForm.georgian)
-    await message.answer("Введите грузинское слово:", reply_markup=_add_word_cancel_menu())
-
-
-@router.message(AddWordForm.georgian, F.text == CANCEL_ADD_WORD_TEXT)
-@router.message(AddWordForm.russian, F.text == CANCEL_ADD_WORD_TEXT)
-@router.message(AddWordForm.topic, F.text == CANCEL_ADD_WORD_TEXT)
-async def cancel_add_word_handler(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Добавление слова отменено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
-
-
-@router.message(AddWordForm.georgian)
-async def add_word_georgian_handler(message: Message, state: FSMContext) -> None:
-    await state.update_data(georgian=message.text.strip())
-    await state.set_state(AddWordForm.russian)
-    await message.answer("Введите русский перевод:", reply_markup=_add_word_cancel_menu())
-
-
-@router.message(AddWordForm.russian)
-async def add_word_russian_handler(message: Message, state: FSMContext) -> None:
-    await state.update_data(russian=message.text.strip())
-    await state.set_state(AddWordForm.topic)
-    await message.answer("Введите тему слова (или '-' чтобы пропустить):", reply_markup=_add_word_cancel_menu())
-
-
-@router.message(AddWordForm.topic)
-async def add_word_topic_handler(message: Message, state: FSMContext) -> None:
-    data = await state.get_data()
-    georgian = data["georgian"]
-    russian = data["russian"]
-    topic_name = message.text.strip()
-
-    async with SessionLocal() as session:
-        created = await WordService(session).add_word(
-            georgian=georgian,
-            russian=russian,
-            topic_name=topic_name,
-        )
-        if not created:
-            await state.clear()
-            await message.answer(
-                "Такое слово уже есть в словаре",
-                reply_markup=get_main_menu(is_admin(message.from_user.id)),
-            )
-            return
-
-    await state.clear()
-    await message.answer("Слово добавлено", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    await send_random_word(message, state)
 
 
 @router.message(LearnWordForm.answer, F.text == "🏠 Главное меню")
@@ -320,8 +234,8 @@ async def learn_word_answer_handler(message: Message, state: FSMContext) -> None
             first_name=message.from_user.first_name,
         )
 
-        user_answer = _normalize_text(message.text)
-        correct_answer = _normalize_text(expected_answer_value or word.russian)
+        user_answer = normalize_text(message.text)
+        correct_answer = normalize_text(expected_answer_value or word.russian)
         is_correct = user_answer == correct_answer
 
         await training_service.apply_answer(
@@ -345,31 +259,5 @@ async def learn_word_answer_handler(message: Message, state: FSMContext) -> None
     else:
         correct_text = expected_answer_value or word.russian
         await message.answer(f"❌ Неверно. Правильный ответ: {correct_text}", reply_markup=learn_menu)
-    await _send_random_word(message, state)
+    await send_random_word(message, state)
 
-
-@router.message(F.text == "🏠 Главное меню")
-async def back_to_main_menu_handler(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(is_admin(message.from_user.id)))
-
-
-@router.message(F.text == "📊 Статистика")
-async def stats_handler(message: Message) -> None:
-    async with SessionLocal() as session:
-        stats = await StatsService(session).get_user_stats(message.from_user.id)
-
-    text = (
-        "📊 Твоя статистика:\n\n"
-        f"• Всего слов в базе: {stats['total_words']}\n"
-        f"• Уже тренировал(а): {stats['trained_words']}\n"
-        f"• Доступно к повторению сейчас: {stats['due_words']}\n"
-        f"• Правильных ответов: {stats['total_correct']}\n"
-        f"• Ошибок: {stats['total_wrong']}"
-    )
-    await message.answer(text)
-
-
-@router.message(F.text == "⚙️ Настройки")
-async def settings_handler(message: Message) -> None:
-    await message.answer("Настройки пока в разработке.")
