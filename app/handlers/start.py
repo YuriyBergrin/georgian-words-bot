@@ -4,7 +4,8 @@ from aiogram.types import Message
 
 from app.db.redis import get_redis
 from app.db.session import SessionLocal
-from app.keyboards.main_menu import main_menu
+from app.keyboards.main_menu import get_main_menu
+from app.services.admin_service import is_admin
 from app.services.user_service import UserService
 
 router = Router()
@@ -25,5 +26,5 @@ async def start_handler(message: Message) -> None:
 
     await message.answer(
         "Привет! Я бот для изучения грузинских слов. Начнем учить სიტყვები!",
-        reply_markup=main_menu,
+        reply_markup=get_main_menu(is_admin(message.from_user.id)),
     )
