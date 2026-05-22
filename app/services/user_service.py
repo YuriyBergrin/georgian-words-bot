@@ -26,3 +26,20 @@ class UserService:
             result = await self.session.execute(select(User).where(User.telegram_id == telegram_id))
             existing_user = result.scalar_one()
             return existing_user
+
+    async def get_or_create_user_in_session(self, telegram_id: int, username: str | None, first_name: str | None) -> User:
+        result = await self.session.execute(select(User).where(User.telegram_id == telegram_id))
+        user = result.scalar_one_or_none()
+        if user:
+            return user
+
+        user = User(telegram_id=telegram_id, username=username, first_name=first_name)
+        self.session.add(user)
+        try:
+            await self.session.flush()
+            return user
+        except IntegrityError:
+            await self.session.rollback()
+            result = await self.session.execute(select(User).where(User.telegram_id == telegram_id))
+            existing_user = result.scalar_one()
+            return existing_user
