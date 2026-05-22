@@ -5,6 +5,7 @@ class AddWordForm(StatesGroup):
     georgian = State()
     russian = State()
     topic = State()
+    topic_custom = State()
 
 
 class LearnWordForm(StatesGroup):
@@ -21,4 +22,3 @@ class EditWordForm(StatesGroup):
     georgian = State()
     russian = State()
     topic = State()
-

@@ -86,6 +86,16 @@ class WordService:
         await self.session.commit()
         return True
 
+    async def get_word_topic_name(self, georgian: str) -> str | None:
+        result = await self.session.execute(
+            select(Topic.name).select_from(Word).outerjoin(Topic, Word.topic_id == Topic.id).where(Word.georgian == georgian)
+        )
+        return result.scalar_one_or_none()
+
+    async def word_exists(self, georgian: str) -> bool:
+        result = await self.session.execute(select(Word.id).where(Word.georgian == georgian).limit(1))
+        return result.scalar_one_or_none() is not None
+
     async def _get_or_create_topic_id(self, topic_name: str) -> int | None:
         if topic_name == "-":
             return None
