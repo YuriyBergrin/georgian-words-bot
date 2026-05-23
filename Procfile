@@ -1,2 +1,1 @@
-release: alembic upgrade head
-worker: python main.py
+worker: sh -c "alembic upgrade head && python main.py"
