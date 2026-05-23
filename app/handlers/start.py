@@ -1,5 +1,7 @@
+from pathlib import Path
+
 from aiogram import Router
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
 from app.db.redis import get_redis
@@ -9,6 +11,7 @@ from app.services.admin_service import is_admin
 from app.services.user_service import UserService
 
 router = Router()
+HELP_TEXT_PATH = Path(__file__).resolve().parent.parent / "help.txt"
 
 
 @router.message(CommandStart())
@@ -28,3 +31,9 @@ async def start_handler(message: Message) -> None:
         "Привет! Я бот для изучения грузинских слов. Начнем учить სიტყვები!",
         reply_markup=get_main_menu(is_admin(message.from_user.id)),
     )
+
+
+@router.message(Command("help"))
+async def help_handler(message: Message) -> None:
+    help_text = HELP_TEXT_PATH.read_text(encoding="utf-8")
+    await message.answer(help_text)
