@@ -54,7 +54,7 @@ async def import_words_handler(message: Message, state: FSMContext) -> None:
         "Формат строки:\ngeorgian | russian | topic",
         reply_markup=cancel_menu(),
     )
-    await message.answer("Пример:\nმივდივარ | я иду | движение\nმიდიხარ | ты идёшь | движение")
+    await message.answer("Пример:\nმივდივარ | я иду | движение")
 
 
 @router.message(F.text == "✏️ Редактировать слово")
