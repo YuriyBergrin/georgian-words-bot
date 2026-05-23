@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.topic import Topic
@@ -28,7 +28,7 @@ class WordService:
         await self.session.commit()
         return True
 
-    async def bulk_import_from_text(self, payload: str) -> dict[str, int | list[str]]:
+    async def bulk_import_from_text(self, payload: str, dry_run: bool = False) -> dict[str, int | list[str]]:
         added = 0
         updated = 0
         skipped = 0
@@ -72,7 +72,10 @@ class WordService:
                 else:
                     skipped += 1
 
-        await self.session.commit()
+        if dry_run:
+            await self.session.rollback()
+        else:
+            await self.session.commit()
         return {"added": added, "updated": updated, "skipped": skipped, "errors_count": len(errors), "errors": errors}
 
     async def update_word(self, georgian: str, new_russian: str, new_topic_name: str) -> bool:
@@ -95,6 +98,50 @@ class WordService:
     async def word_exists(self, georgian: str) -> bool:
         result = await self.session.execute(select(Word.id).where(Word.georgian == georgian).limit(1))
         return result.scalar_one_or_none() is not None
+
+    async def search_words(self, query: str, offset: int, limit: int) -> list[tuple[str, str, str | None]]:
+        pattern = f"%{query.strip()}%"
+        result = await self.session.execute(
+            select(Word.georgian, Word.russian, Topic.name)
+            .select_from(Word)
+            .outerjoin(Topic, Word.topic_id == Topic.id)
+            .where(
+                or_(
+                    Word.georgian.ilike(pattern),
+                    Word.russian.ilike(pattern),
+                    Topic.name.ilike(pattern),
+                )
+            )
+            .order_by(Word.georgian.asc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return [(g, r, t) for g, r, t in result.all()]
+
+    async def count_search_words(self, query: str) -> int:
+        pattern = f"%{query.strip()}%"
+        result = await self.session.execute(
+            select(func.count(Word.id))
+            .select_from(Word)
+            .outerjoin(Topic, Word.topic_id == Topic.id)
+            .where(
+                or_(
+                    Word.georgian.ilike(pattern),
+                    Word.russian.ilike(pattern),
+                    Topic.name.ilike(pattern),
+                )
+            )
+        )
+        return result.scalar_one()
+
+    async def delete_word(self, georgian: str) -> bool:
+        word_result = await self.session.execute(select(Word).where(Word.georgian == georgian))
+        word = word_result.scalar_one_or_none()
+        if word is None:
+            return False
+        await self.session.delete(word)
+        await self.session.commit()
+        return True
 
     async def _get_or_create_topic_id(self, topic_name: str) -> int | None:
         if topic_name == "-":

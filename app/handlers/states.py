@@ -15,6 +15,7 @@ class LearnWordForm(StatesGroup):
 
 
 class BulkImportForm(StatesGroup):
+    mode = State()
     payload = State()
 
 
@@ -22,3 +23,12 @@ class EditWordForm(StatesGroup):
     georgian = State()
     russian = State()
     topic = State()
+
+
+class SearchWordForm(StatesGroup):
+    query = State()
+    browse = State()
+
+
+class DeleteWordForm(StatesGroup):
+    georgian = State()

@@ -5,7 +5,7 @@ from loguru import logger
 
 from app.db.session import SessionLocal
 from app.handlers.common_helpers import CANCEL_TEXT, cancel_menu, ensure_admin_or_reply
-from app.handlers.states import AddWordForm, BulkImportForm, EditWordForm
+from app.handlers.states import AddWordForm, BulkImportForm, DeleteWordForm, EditWordForm, SearchWordForm
 from app.keyboards.main_menu import get_main_menu
 from app.services.admin_service import is_admin
 from app.services.topic_service import TopicService
@@ -16,6 +16,12 @@ KEEP_TOPIC_TEXT = "✅ Оставить текущую тему"
 REMOVE_TOPIC_TEXT = "➖ Убрать тему"
 NEW_TOPIC_TEXT = "✍️ Ввести новую тему"
 SKIP_TOPIC_TEXT = "⏭️ Без темы"
+IMPORT_DRY_RUN_TEXT = "🧪 Проверка (dry-run)"
+IMPORT_APPLY_TEXT = "💾 Импортировать"
+SEARCH_PREV_TEXT = "⬅️ Назад"
+SEARCH_NEXT_TEXT = "➡️ Вперед"
+DELETE_WORD_TEXT = "🗑 Удалить слово"
+SEARCH_PAGE_SIZE = 10
 
 
 def edit_topic_menu(topics: list[str], current_topic: str | None) -> ReplyKeyboardMarkup:
@@ -37,6 +43,28 @@ def add_topic_menu(topics: list[str]) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 
+def import_mode_menu() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=IMPORT_DRY_RUN_TEXT), KeyboardButton(text=IMPORT_APPLY_TEXT)],
+            [KeyboardButton(text=CANCEL_TEXT)],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def search_browse_menu(has_prev: bool, has_next: bool) -> ReplyKeyboardMarkup:
+    row: list[KeyboardButton] = []
+    if has_prev:
+        row.append(KeyboardButton(text=SEARCH_PREV_TEXT))
+    if has_next:
+        row.append(KeyboardButton(text=SEARCH_NEXT_TEXT))
+    keyboard: list[list[KeyboardButton]] = [row] if row else []
+    keyboard.append([KeyboardButton(text="✏️ Редактировать слово"), KeyboardButton(text=DELETE_WORD_TEXT)])
+    keyboard.append([KeyboardButton(text=CANCEL_TEXT)])
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
+
 @router.message(F.text == "➕ Добавить слово")
 async def add_word_handler(message: Message, state: FSMContext) -> None:
     if not await ensure_admin_or_reply(message, state):
@@ -49,10 +77,10 @@ async def add_word_handler(message: Message, state: FSMContext) -> None:
 async def import_words_handler(message: Message, state: FSMContext) -> None:
     if not await ensure_admin_or_reply(message, state):
         return
-    await state.set_state(BulkImportForm.payload)
+    await state.set_state(BulkImportForm.mode)
     await message.answer(
         "Формат: georgian | russian | topic\nПример: მივდივარ | я иду | движение",
-        reply_markup=cancel_menu(),
+        reply_markup=import_mode_menu(),
     )
 
 
@@ -64,10 +92,22 @@ async def edit_word_handler(message: Message, state: FSMContext) -> None:
     await message.answer("Введи грузинское слово для редактирования:", reply_markup=cancel_menu())
 
 
+@router.message(F.text == "🔎 Найти слово")
+async def search_words_handler(message: Message, state: FSMContext) -> None:
+    if not await ensure_admin_or_reply(message, state):
+        return
+    await state.set_state(SearchWordForm.query)
+    await message.answer("Введи текст для поиска (грузинское, русский перевод или тема):", reply_markup=cancel_menu())
+
+
 @router.message(BulkImportForm.payload, F.text == CANCEL_TEXT)
+@router.message(BulkImportForm.mode, F.text == CANCEL_TEXT)
 @router.message(EditWordForm.georgian, F.text == CANCEL_TEXT)
 @router.message(EditWordForm.russian, F.text == CANCEL_TEXT)
 @router.message(EditWordForm.topic, F.text == CANCEL_TEXT)
+@router.message(SearchWordForm.query, F.text == CANCEL_TEXT)
+@router.message(SearchWordForm.browse, F.text == CANCEL_TEXT)
+@router.message(DeleteWordForm.georgian, F.text == CANCEL_TEXT)
 @router.message(AddWordForm.georgian, F.text == CANCEL_TEXT)
 @router.message(AddWordForm.russian, F.text == CANCEL_TEXT)
 @router.message(AddWordForm.topic, F.text == CANCEL_TEXT)
@@ -77,13 +117,25 @@ async def cancel_admin_forms_handler(message: Message, state: FSMContext) -> Non
     await message.answer("Действие отменено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
 
 
+@router.message(BulkImportForm.mode, F.text == IMPORT_DRY_RUN_TEXT)
+@router.message(BulkImportForm.mode, F.text == IMPORT_APPLY_TEXT)
+async def import_words_mode_handler(message: Message, state: FSMContext) -> None:
+    is_dry_run = message.text == IMPORT_DRY_RUN_TEXT
+    await state.update_data(import_dry_run=is_dry_run)
+    await state.set_state(BulkImportForm.payload)
+    await message.answer("Вставь список строк для импорта:", reply_markup=cancel_menu())
+
+
 @router.message(BulkImportForm.payload)
 async def import_words_payload_handler(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    is_dry_run = bool(data.get("import_dry_run", False))
     async with SessionLocal() as session:
-        report = await WordService(session).bulk_import_from_text(message.text or "")
+        report = await WordService(session).bulk_import_from_text(message.text or "", dry_run=is_dry_run)
     logger.info(
-        "admin_action import_words admin_id={} added={} updated={} skipped={} errors_count={}",
+        "admin_action import_words admin_id={} dry_run={} added={} updated={} skipped={} errors_count={}",
         message.from_user.id,
+        is_dry_run,
         report["added"],
         report["updated"],
         report["skipped"],
@@ -92,7 +144,7 @@ async def import_words_payload_handler(message: Message, state: FSMContext) -> N
 
     await state.clear()
     text = (
-        "Импорт завершен:\n"
+        f"{'Проверка (dry-run)' if is_dry_run else 'Импорт'} завершен:\n"
         f"• Добавлено: {report['added']}\n"
         f"• Обновлено: {report['updated']}\n"
         f"• Пропущено: {report['skipped']}\n"
@@ -102,6 +154,78 @@ async def import_words_payload_handler(message: Message, state: FSMContext) -> N
     if errors:
         text += "\n\n" + "\n".join(errors[:10])
     await message.answer(text, reply_markup=get_main_menu(is_admin(message.from_user.id)))
+
+
+async def _render_search_page(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    query = data.get("search_query", "")
+    page = int(data.get("search_page", 0))
+
+    async with SessionLocal() as session:
+        service = WordService(session)
+        total = await service.count_search_words(query)
+        rows = await service.search_words(query, offset=page * SEARCH_PAGE_SIZE, limit=SEARCH_PAGE_SIZE)
+
+    if total == 0:
+        await state.set_state(SearchWordForm.query)
+        await message.answer("Ничего не найдено. Введи другой запрос:", reply_markup=cancel_menu())
+        return
+
+    page_count = (total + SEARCH_PAGE_SIZE - 1) // SEARCH_PAGE_SIZE
+    lines = [f"Результаты поиска: {query}", f"Страница {page + 1}/{page_count}"]
+    for idx, (georgian, russian, topic) in enumerate(rows, start=1 + page * SEARCH_PAGE_SIZE):
+        topic_text = topic if topic else "-"
+        lines.append(f"{idx}. {georgian} — {russian} [{topic_text}]")
+
+    has_prev = page > 0
+    has_next = (page + 1) * SEARCH_PAGE_SIZE < total
+    await state.set_state(SearchWordForm.browse)
+    await message.answer("\n".join(lines), reply_markup=search_browse_menu(has_prev, has_next))
+
+
+@router.message(SearchWordForm.query)
+async def search_words_query_handler(message: Message, state: FSMContext) -> None:
+    query = (message.text or "").strip()
+    if not query:
+        await message.answer("Запрос пустой. Введи текст для поиска:", reply_markup=cancel_menu())
+        return
+    await state.update_data(search_query=query, search_page=0)
+    await _render_search_page(message, state)
+
+
+@router.message(SearchWordForm.browse, F.text == SEARCH_PREV_TEXT)
+async def search_words_prev_handler(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    page = max(int(data.get("search_page", 0)) - 1, 0)
+    await state.update_data(search_page=page)
+    await _render_search_page(message, state)
+
+
+@router.message(SearchWordForm.browse, F.text == SEARCH_NEXT_TEXT)
+async def search_words_next_handler(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    page = int(data.get("search_page", 0)) + 1
+    await state.update_data(search_page=page)
+    await _render_search_page(message, state)
+
+
+@router.message(SearchWordForm.browse, F.text == DELETE_WORD_TEXT)
+async def delete_word_start_handler(message: Message, state: FSMContext) -> None:
+    await state.set_state(DeleteWordForm.georgian)
+    await message.answer("Введи грузинское слово для удаления:", reply_markup=cancel_menu())
+
+
+@router.message(DeleteWordForm.georgian)
+async def delete_word_handler(message: Message, state: FSMContext) -> None:
+    georgian = message.text.strip()
+    async with SessionLocal() as session:
+        deleted = await WordService(session).delete_word(georgian)
+    logger.info("admin_action delete_word admin_id={} georgian={} deleted={}", message.from_user.id, georgian, deleted)
+    await state.clear()
+    if deleted:
+        await message.answer("Слово удалено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    else:
+        await message.answer("Слово не найдено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
 
 
 @router.message(EditWordForm.georgian)
