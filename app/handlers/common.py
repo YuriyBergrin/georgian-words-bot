@@ -37,8 +37,3 @@ async def stats_handler(message: Message) -> None:
         f"• Ошибок: {stats['total_wrong']}"
     )
     await message.answer(text)
-
-
-@router.message(F.text == "⚙️ Настройки")
-async def settings_handler(message: Message) -> None:
-    await message.answer("Настройки пока в разработке.")
