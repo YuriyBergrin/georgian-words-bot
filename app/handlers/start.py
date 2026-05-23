@@ -14,6 +14,10 @@ router = Router()
 HELP_TEXT_PATH = Path(__file__).resolve().parent.parent / "help.txt"
 
 
+def get_help_text() -> str:
+    return HELP_TEXT_PATH.read_text(encoding="utf-8")
+
+
 @router.message(CommandStart())
 async def start_handler(message: Message) -> None:
     async with SessionLocal() as session:
@@ -35,5 +39,4 @@ async def start_handler(message: Message) -> None:
 
 @router.message(Command("help"))
 async def help_handler(message: Message) -> None:
-    help_text = HELP_TEXT_PATH.read_text(encoding="utf-8")
-    await message.answer(help_text)
+    await message.answer(get_help_text())

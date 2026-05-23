@@ -4,6 +4,7 @@ from aiogram.types import Message
 
 from app.db.session import SessionLocal
 from app.handlers.common_helpers import CANCEL_TEXT
+from app.handlers.start import get_help_text
 from app.keyboards.main_menu import get_main_menu
 from app.services.admin_service import is_admin
 from app.services.stats_service import StatsService
@@ -37,3 +38,8 @@ async def stats_handler(message: Message) -> None:
         f"• Ошибок: {stats['total_wrong']}"
     )
     await message.answer(text)
+
+
+@router.message(F.text == "❓ Помощь")
+async def help_button_handler(message: Message) -> None:
+    await message.answer(get_help_text())
