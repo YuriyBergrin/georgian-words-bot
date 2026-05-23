@@ -51,7 +51,7 @@ async def import_words_handler(message: Message, state: FSMContext) -> None:
         return
     await state.set_state(BulkImportForm.payload)
     await message.answer(
-        "Вставь список строк в формате:\ngeorgian | russian | topic\n\nПример:\nმივდივარ | я иду | движение",
+        "Вставь список строк в формате:\ngeorgian | russian | topic\n\nПример:\nმივდივარ | я иду | движение\nმიდიხარ | ты идёшь | движение",
         reply_markup=cancel_menu(),
     )
 
