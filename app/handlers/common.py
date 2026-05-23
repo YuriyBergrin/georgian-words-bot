@@ -15,7 +15,7 @@ router = Router()
 @router.message(F.text == CANCEL_TEXT)
 async def global_cancel_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Действие отменено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    await message.answer("Главное меню", reply_markup=get_main_menu(is_admin(message.from_user.id)))
 
 
 @router.message(F.text == "🏠 Главное меню")

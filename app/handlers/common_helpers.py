@@ -2,10 +2,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 from loguru import logger
 
+from app.keyboards.training import BACK_TO_MENU_TEXT
 from app.keyboards.main_menu import get_main_menu
 from app.services.admin_service import is_admin
 
-CANCEL_TEXT = "❌ Отмена"
+CANCEL_TEXT = BACK_TO_MENU_TEXT
 
 
 def normalize_text(value: str) -> str:

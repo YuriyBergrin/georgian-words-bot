@@ -114,7 +114,7 @@ async def search_words_handler(message: Message, state: FSMContext) -> None:
 @router.message(AddWordForm.topic_custom, F.text == CANCEL_TEXT)
 async def cancel_admin_forms_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Действие отменено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    await message.answer("Главное меню", reply_markup=get_main_menu(is_admin(message.from_user.id)))
 
 
 @router.message(BulkImportForm.mode, F.text == IMPORT_DRY_RUN_TEXT)
