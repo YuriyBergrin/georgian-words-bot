@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.topic import Topic
@@ -14,7 +14,9 @@ class TrainingSchedulingService:
 
     async def reset_topic_for_repeat(self, user_id: int, topic: str) -> None:
         now = datetime.now(timezone.utc)
-        word_ids_subquery = select(Word.id).join(Topic, Word.topic_id == Topic.id).where(Topic.name == topic)
+        word_ids_subquery = (
+            select(Word.id).join(Topic, Word.topic_id == Topic.id).where(func.lower(Topic.name) == topic.lower())
+        )
         await self.session.execute(
             update(UserWordProgress)
             .where(
@@ -23,4 +25,3 @@ class TrainingSchedulingService:
             )
             .values(next_review_at=now)
         )
-

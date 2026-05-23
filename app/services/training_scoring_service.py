@@ -12,16 +12,19 @@ class TrainingScoringService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def apply_answer(self, user: User, word: Word, direction: str, is_correct: bool, is_choice: bool) -> None:
-        now = datetime.now(timezone.utc)
+    async def get_progress(self, user_id: int, word_id: int, direction: str) -> UserWordProgress | None:
         progress_result = await self.session.execute(
             select(UserWordProgress).where(
-                UserWordProgress.user_id == user.id,
-                UserWordProgress.word_id == word.id,
+                UserWordProgress.user_id == user_id,
+                UserWordProgress.word_id == word_id,
                 UserWordProgress.direction == direction,
             )
         )
-        progress = progress_result.scalar_one_or_none()
+        return progress_result.scalar_one_or_none()
+
+    async def apply_answer(self, user: User, word: Word, direction: str, is_correct: bool, is_choice: bool) -> None:
+        now = datetime.now(timezone.utc)
+        progress = await self.get_progress(user.id, word.id, direction)
         if progress is None:
             progress = UserWordProgress(
                 user_id=user.id,
@@ -79,4 +82,3 @@ class TrainingScoringService:
         if level == 3:
             return 14
         return 30
-

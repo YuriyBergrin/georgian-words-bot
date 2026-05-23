@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.topic import Topic
@@ -99,10 +99,13 @@ class WordService:
     async def _get_or_create_topic_id(self, topic_name: str) -> int | None:
         if topic_name == "-":
             return None
-        topic_result = await self.session.execute(select(Topic).where(Topic.name == topic_name))
+        normalized_topic_name = topic_name.strip()
+        topic_result = await self.session.execute(
+            select(Topic).where(func.lower(Topic.name) == normalized_topic_name.lower())
+        )
         topic = topic_result.scalar_one_or_none()
         if topic is None:
-            topic = Topic(name=topic_name)
+            topic = Topic(name=normalized_topic_name)
             self.session.add(topic)
             await self.session.flush()
         return topic.id

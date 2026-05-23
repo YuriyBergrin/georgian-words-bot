@@ -32,7 +32,7 @@ def translation_options_menu(options: list[str]) -> ReplyKeyboardMarkup:
             row = []
     if row:
         rows.append(row)
-    rows.append([KeyboardButton(text="🏠 Главное меню")])
+    rows.append([KeyboardButton(text=BACK_TO_MENU_TEXT)])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 

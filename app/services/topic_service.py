@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.topic import Topic
@@ -17,7 +17,9 @@ class TopicService:
 
     async def topic_exists_with_words(self, topic_name: str) -> bool:
         result = await self.session.execute(
-            select(Topic.id).join(Word, Word.topic_id == Topic.id).where(Topic.name == topic_name).limit(1)
+            select(Topic.id)
+            .join(Word, Word.topic_id == Topic.id)
+            .where(func.lower(Topic.name) == topic_name.lower())
+            .limit(1)
         )
         return result.scalar_one_or_none() is not None
-

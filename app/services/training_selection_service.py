@@ -43,7 +43,7 @@ class TrainingSelectionService:
         )
 
         if topic is not None:
-            query = query.join(Topic, Word.topic_id == Topic.id).where(Topic.name == topic)
+            query = query.join(Topic, Word.topic_id == Topic.id).where(func.lower(Topic.name) == topic.lower())
         if exclude_word_id is not None:
             query = query.where(Word.id != exclude_word_id)
 
@@ -78,4 +78,3 @@ class TrainingSelectionService:
         options = [correct_answer, *distractors]
         random.shuffle(options)
         return options
-

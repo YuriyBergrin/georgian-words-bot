@@ -3,6 +3,7 @@ import random
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
+from loguru import logger
 from sqlalchemy import select
 
 from app.db.session import SessionLocal
@@ -100,6 +101,13 @@ async def send_random_word(message: Message, state: FSMContext) -> None:
         await session.commit()
 
     if word is None:
+        logger.info(
+            "word_selected_none user_id={} topic={} repeat_word_id={} repeat_remaining={}",
+            message.from_user.id,
+            selected_topic,
+            repeat_word_id,
+            repeat_remaining,
+        )
         if selected_topic is None:
             await message.answer("Пока нет слов для повторения.", reply_markup=learn_menu)
         else:
@@ -116,6 +124,15 @@ async def send_random_word(message: Message, state: FSMContext) -> None:
         expected_answer=expected_answer,
         question_type="choice" if is_choice_question else "text",
     )
+    logger.info(
+        "word_selected user_id={} word_id={} topic={} direction={} question_type={} reason={}",
+        message.from_user.id,
+        word.id,
+        selected_topic,
+        direction,
+        "choice" if is_choice_question else "text",
+        "repeat_after_error" if repeat_word_id and repeat_remaining <= 0 else "normal",
+    )
 
     if is_choice_question:
         await message.answer(
@@ -128,12 +145,14 @@ async def send_random_word(message: Message, state: FSMContext) -> None:
 
 @router.message(F.text == "📚 Учить слова")
 async def learn_words_handler(message: Message, state: FSMContext) -> None:
+    logger.info("state_transition user_id={} from_state=* to_state={}", message.from_user.id, LearnWordForm.mode.state)
     await state.set_state(LearnWordForm.mode)
     await message.answer("Выбери режим тренировки:", reply_markup=training_mode_menu())
 
 
 @router.message(LearnWordForm.mode, F.text == TRAIN_ALL_WORDS_TEXT)
 async def learn_all_words_mode_handler(message: Message, state: FSMContext) -> None:
+    logger.info("training_mode_selected user_id={} mode=all_words", message.from_user.id)
     await state.update_data(selected_topic=None)
     await send_random_word(message, state)
 
@@ -144,10 +163,12 @@ async def learn_by_topic_mode_handler(message: Message, state: FSMContext) -> No
         topics = await TopicService(session).list_topics_with_words()
 
     if not topics:
+        logger.info("training_topics_empty user_id={}", message.from_user.id)
         await state.set_state(LearnWordForm.mode)
         await message.answer("Темы пока не добавлены", reply_markup=training_mode_menu())
         return
 
+    logger.info("state_transition user_id={} from_state=* to_state={}", message.from_user.id, LearnWordForm.topic.state)
     await state.set_state(LearnWordForm.topic)
     await message.answer("Выбери тему:", reply_markup=topics_menu(topics))
 
@@ -166,9 +187,11 @@ async def learn_topic_selected_handler(message: Message, state: FSMContext) -> N
         topics = await topic_service.list_topics_with_words()
 
     if not topic_exists:
+        logger.info("training_topic_invalid user_id={} topic={}", message.from_user.id, topic_name)
         await message.answer("Выбери тему из списка.", reply_markup=topics_menu(topics))
         return
 
+    logger.info("training_topic_selected user_id={} topic={}", message.from_user.id, topic_name)
     await state.update_data(selected_topic=topic_name)
     await send_random_word(message, state)
 
@@ -185,6 +208,7 @@ async def repeat_topic_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     selected_topic = data.get("selected_topic")
     if not selected_topic:
+        logger.info("repeat_topic_without_selected user_id={}", message.from_user.id)
         await state.clear()
         await message.answer("Сначала выбери режим тренировки.", reply_markup=training_mode_menu())
         return
@@ -200,10 +224,17 @@ async def repeat_topic_handler(message: Message, state: FSMContext) -> None:
         await session.commit()
 
     await send_random_word(message, state)
+    logger.info("repeat_topic user_id={} topic={}", message.from_user.id, selected_topic)
 
 
 @router.message(LearnWordForm.answer, F.text == "🏠 Главное меню")
 async def back_to_main_menu_from_answer_handler(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer("Главное меню", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+
+
+@router.message(LearnWordForm.answer, F.text == BACK_TO_MENU_TEXT)
+async def back_to_main_menu_from_answer_back_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("Главное меню", reply_markup=get_main_menu(is_admin(message.from_user.id)))
 
@@ -215,6 +246,12 @@ async def learn_word_answer_handler(message: Message, state: FSMContext) -> None
     question_direction = data.get("question_direction", TrainingService.DIRECTION_GE_RU)
     expected_answer_value = data.get("expected_answer")
     question_type = data.get("question_type", "text")
+
+    level_before = None
+    streak_before = None
+    level_after = None
+    streak_after = None
+    next_review_after = None
 
     async with SessionLocal() as session:
         training_service = TrainingService(session)
@@ -233,6 +270,10 @@ async def learn_word_answer_handler(message: Message, state: FSMContext) -> None
             username=message.from_user.username,
             first_name=message.from_user.first_name,
         )
+        progress_before = await training_service.scoring.get_progress(user.id, word.id, question_direction)
+        if progress_before is not None:
+            level_before = progress_before.level
+            streak_before = progress_before.streak_correct
 
         user_answer = normalize_text(message.text)
         correct_answer = normalize_text(expected_answer_value or word.russian)
@@ -245,6 +286,11 @@ async def learn_word_answer_handler(message: Message, state: FSMContext) -> None
             is_correct=is_correct,
             is_choice=question_type == "choice",
         )
+        progress = await training_service.scoring.get_progress(user.id, word.id, question_direction)
+        if progress is not None:
+            level_after = progress.level
+            streak_after = progress.streak_correct
+            next_review_after = progress.next_review_at
         await session.commit()
 
     if not is_correct:
@@ -259,5 +305,17 @@ async def learn_word_answer_handler(message: Message, state: FSMContext) -> None
     else:
         correct_text = expected_answer_value or word.russian
         await message.answer(f"❌ Неверно. Правильный ответ: {correct_text}", reply_markup=learn_menu)
+    logger.info(
+        "answer_result user_id={} word_id={} direction={} question_type={} is_correct={} level_before={} level_after={} streak_before={} streak_after={} next_review_at={}",
+        message.from_user.id,
+        word_id,
+        question_direction,
+        question_type,
+        is_correct,
+        level_before,
+        level_after,
+        streak_before,
+        streak_after,
+        next_review_after,
+    )
     await send_random_word(message, state)
-

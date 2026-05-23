@@ -3,11 +3,18 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from app.db.session import SessionLocal
+from app.handlers.common_helpers import CANCEL_TEXT
 from app.keyboards.main_menu import get_main_menu
 from app.services.admin_service import is_admin
 from app.services.stats_service import StatsService
 
 router = Router()
+
+
+@router.message(F.text == CANCEL_TEXT)
+async def global_cancel_handler(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer("Действие отменено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
 
 
 @router.message(F.text == "🏠 Главное меню")
@@ -35,4 +42,3 @@ async def stats_handler(message: Message) -> None:
 @router.message(F.text == "⚙️ Настройки")
 async def settings_handler(message: Message) -> None:
     await message.answer("Настройки пока в разработке.")
-

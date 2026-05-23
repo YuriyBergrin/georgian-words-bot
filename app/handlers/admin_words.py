@@ -1,6 +1,7 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
+from loguru import logger
 
 from app.db.session import SessionLocal
 from app.handlers.common_helpers import CANCEL_TEXT, cancel_menu, ensure_admin_or_reply
@@ -80,6 +81,14 @@ async def cancel_admin_forms_handler(message: Message, state: FSMContext) -> Non
 async def import_words_payload_handler(message: Message, state: FSMContext) -> None:
     async with SessionLocal() as session:
         report = await WordService(session).bulk_import_from_text(message.text or "")
+    logger.info(
+        "admin_action import_words admin_id={} added={} updated={} skipped={} errors_count={}",
+        message.from_user.id,
+        report["added"],
+        report["updated"],
+        report["skipped"],
+        report["errors_count"],
+    )
 
     await state.clear()
     text = (
@@ -152,6 +161,13 @@ async def edit_word_topic_handler(message: Message, state: FSMContext) -> None:
             new_russian=russian,
             new_topic_name=topic_name,
         )
+    logger.info(
+        "admin_action edit_word admin_id={} georgian={} updated={} topic={}",
+        message.from_user.id,
+        georgian,
+        updated,
+        topic_name,
+    )
 
     await state.clear()
     if updated:
@@ -206,6 +222,13 @@ async def add_word_topic_handler(message: Message, state: FSMContext) -> None:
             russian=russian,
             topic_name=topic_name,
         )
+        logger.info(
+            "admin_action add_word admin_id={} georgian={} created={} topic={}",
+            message.from_user.id,
+            georgian,
+            created,
+            topic_name,
+        )
         if not created:
             await state.clear()
             await message.answer(
@@ -233,6 +256,13 @@ async def add_word_topic_custom_handler(message: Message, state: FSMContext) -> 
             georgian=georgian,
             russian=russian,
             topic_name=topic_name,
+        )
+        logger.info(
+            "admin_action add_word_custom_topic admin_id={} georgian={} created={} topic={}",
+            message.from_user.id,
+            georgian,
+            created,
+            topic_name,
         )
         if not created:
             await state.clear()
