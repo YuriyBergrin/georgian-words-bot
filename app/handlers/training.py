@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.db.session import SessionLocal
 from app.handlers.states import LearnWordForm
-from app.handlers.common_helpers import normalize_text
+from app.handlers.common_helpers import is_admin_user, normalize_text
 from app.keyboards.learn_menu import learn_menu
 from app.keyboards.main_menu import get_main_menu
 from app.keyboards.training import (
@@ -22,7 +22,6 @@ from app.keyboards.training import (
     translation_options_menu,
 )
 from app.models.word import Word
-from app.services.admin_service import is_admin
 from app.services.topic_service import TopicService
 from app.services.training_service import TrainingService
 
@@ -178,7 +177,7 @@ async def learn_topic_selected_handler(message: Message, state: FSMContext) -> N
     topic_name = message.text.strip()
     if topic_name == BACK_TO_MENU_TEXT:
         await state.clear()
-        await message.answer("Главное меню", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+        await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
         return
 
     async with SessionLocal() as session:
@@ -200,7 +199,7 @@ async def learn_topic_selected_handler(message: Message, state: FSMContext) -> N
 @router.message(LearnWordForm.topic, F.text == BACK_TO_MENU_TEXT)
 async def back_from_training_mode_to_menu_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
 
 
 @router.message(F.text == REPEAT_TOPIC_TEXT)
@@ -230,13 +229,13 @@ async def repeat_topic_handler(message: Message, state: FSMContext) -> None:
 @router.message(LearnWordForm.answer, F.text == "🏠 Главное меню")
 async def back_to_main_menu_from_answer_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
 
 
 @router.message(LearnWordForm.answer, F.text == BACK_TO_MENU_TEXT)
 async def back_to_main_menu_from_answer_back_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
 
 
 @router.message(LearnWordForm.answer)
@@ -261,7 +260,7 @@ async def learn_word_answer_handler(message: Message, state: FSMContext) -> None
             await state.clear()
             await message.answer(
                 "Слово не найдено. Попробуй снова.",
-                reply_markup=get_main_menu(is_admin(message.from_user.id)),
+                reply_markup=get_main_menu(await is_admin_user(message.from_user.id)),
             )
             return
 

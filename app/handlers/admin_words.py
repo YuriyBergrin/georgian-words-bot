@@ -4,10 +4,9 @@ from aiogram.types import BufferedInputFile, KeyboardButton, Message, ReplyKeybo
 from loguru import logger
 
 from app.db.session import SessionLocal
-from app.handlers.common_helpers import CANCEL_TEXT, cancel_menu, ensure_admin_or_reply
+from app.handlers.common_helpers import CANCEL_TEXT, cancel_menu, ensure_admin_or_reply, is_admin_user
 from app.handlers.states import AddWordForm, BulkImportForm, DeleteWordForm, EditWordForm, SearchWordForm
 from app.keyboards.main_menu import get_main_menu
-from app.services.admin_service import is_admin
 from app.services.topic_service import TopicService
 from app.services.word_service import WordService
 
@@ -129,7 +128,7 @@ async def search_words_handler(message: Message, state: FSMContext) -> None:
 @router.message(AddWordForm.topic_custom, F.text == CANCEL_TEXT)
 async def cancel_admin_forms_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
 
 
 @router.message(BulkImportForm.mode, F.text == IMPORT_DRY_RUN_TEXT)
@@ -180,7 +179,7 @@ async def import_words_payload_handler(message: Message, state: FSMContext) -> N
     errors = report.get("errors", [])
     if errors:
         text += "\n\n" + "\n".join(errors[:10])
-    await message.answer(text, reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    await message.answer(text, reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
 
 
 async def _render_search_page(message: Message, state: FSMContext) -> None:
@@ -250,9 +249,9 @@ async def delete_word_handler(message: Message, state: FSMContext) -> None:
     logger.info("admin_action delete_word admin_id={} georgian={} deleted={}", message.from_user.id, georgian, deleted)
     await state.clear()
     if deleted:
-        await message.answer("Слово удалено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+        await message.answer("Слово удалено.", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
     else:
-        await message.answer("Слово не найдено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+        await message.answer("Слово не найдено.", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
 
 
 @router.message(EditWordForm.georgian)
@@ -322,9 +321,9 @@ async def edit_word_topic_handler(message: Message, state: FSMContext) -> None:
 
     await state.clear()
     if updated:
-        await message.answer("Слово обновлено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+        await message.answer("Слово обновлено.", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
     else:
-        await message.answer("Слово не найдено.", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+        await message.answer("Слово не найдено.", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
 
 
 @router.message(AddWordForm.georgian)
@@ -384,12 +383,12 @@ async def add_word_topic_handler(message: Message, state: FSMContext) -> None:
             await state.clear()
             await message.answer(
                 "Такое слово уже есть в словаре",
-                reply_markup=get_main_menu(is_admin(message.from_user.id)),
+                reply_markup=get_main_menu(await is_admin_user(message.from_user.id)),
             )
             return
 
     await state.clear()
-    await message.answer("Слово добавлено", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    await message.answer("Слово добавлено", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
 
 
 @router.message(AddWordForm.topic_custom)
@@ -419,9 +418,9 @@ async def add_word_topic_custom_handler(message: Message, state: FSMContext) -> 
             await state.clear()
             await message.answer(
                 "Такое слово уже есть в словаре",
-                reply_markup=get_main_menu(is_admin(message.from_user.id)),
+                reply_markup=get_main_menu(await is_admin_user(message.from_user.id)),
             )
             return
 
     await state.clear()
-    await message.answer("Слово добавлено", reply_markup=get_main_menu(is_admin(message.from_user.id)))
+    await message.answer("Слово добавлено", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))

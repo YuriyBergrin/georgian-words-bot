@@ -9,6 +9,11 @@ Telegram-бот для изучения грузинских слов на `aiog
 - регистрация пользователя по `/start` (без дублей по `telegram_id`)
 - `/help` и кнопка `❓ Помощь` (текст из `app/help.txt`)
 - роли через `ADMIN_TELEGRAM_IDS` (админские функции скрыты для обычных пользователей)
+- `ADMIN_TELEGRAM_IDS` используется как bootstrap-суперадмины
+- управление админами через команды (доступно bootstrap-суперадмину):
+  - `/admins`
+  - `/add_admin <telegram_id>`
+  - `/remove_admin <telegram_id>`
 - главное меню (`ReplyKeyboardMarkup`) с разными кнопками для админа и пользователя
 - FSM на Redis (`RedisStorage`) для устойчивости к рестартам бота
 - админ-функции словаря:
@@ -96,7 +101,7 @@ worker: sh -c "alembic upgrade head && python main.py"
   - `BOT_TOKEN`
   - `DATABASE_URL`
   - `REDIS_URL`
-  - `ADMIN_TELEGRAM_IDS` (например: `12345,67890`)
+  - `ADMIN_TELEGRAM_IDS` (например: `12345,67890`) — bootstrap-суперадмины
 
 ## Workflow миграций
 
