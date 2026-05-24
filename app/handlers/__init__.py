@@ -8,9 +8,9 @@ from app.handlers.training import router as training_router
 
 router = Router()
 router.include_router(start_router)
+router.include_router(common_router)
 router.include_router(training_router)
 router.include_router(admin_words_router)
 router.include_router(admin_stats_router)
-router.include_router(common_router)
 
 __all__ = ["router"]
