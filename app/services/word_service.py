@@ -143,6 +143,18 @@ class WordService:
         await self.session.commit()
         return True
 
+    async def export_words_rows(self) -> list[tuple[str, str, str]]:
+        result = await self.session.execute(
+            select(Word.georgian, Word.russian, Topic.name)
+            .select_from(Word)
+            .outerjoin(Topic, Word.topic_id == Topic.id)
+            .order_by(Word.georgian.asc())
+        )
+        rows = []
+        for georgian, russian, topic_name in result.all():
+            rows.append((georgian, russian, topic_name or "-"))
+        return rows
+
     async def _get_or_create_topic_id(self, topic_name: str) -> int | None:
         if topic_name == "-":
             return None

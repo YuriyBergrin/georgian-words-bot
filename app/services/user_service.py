@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,3 +45,19 @@ class UserService:
             result = await self.session.execute(select(User).where(User.telegram_id == telegram_id))
             existing_user = result.scalar_one()
             return existing_user
+
+    async def touch_daily_streak(self, user: User, today: date | None = None) -> None:
+        current = today or date.today()
+        if user.last_active_date is None:
+            user.streak_days = 1
+            user.last_active_date = current
+            return
+
+        if user.last_active_date == current:
+            return
+
+        if user.last_active_date == current - timedelta(days=1):
+            user.streak_days = (user.streak_days or 0) + 1
+        else:
+            user.streak_days = 1
+        user.last_active_date = current

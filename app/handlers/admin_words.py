@@ -1,6 +1,6 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.types import BufferedInputFile, KeyboardButton, Message, ReplyKeyboardMarkup
 from loguru import logger
 
 from app.db.session import SessionLocal
@@ -22,6 +22,7 @@ SEARCH_PREV_TEXT = "⬅️ Назад"
 SEARCH_NEXT_TEXT = "➡️ Вперед"
 DELETE_WORD_TEXT = "🗑 Удалить слово"
 SEARCH_PAGE_SIZE = 10
+IMPORT_MAX_WORDS = 50
 
 
 def edit_topic_menu(topics: list[str], current_topic: str | None) -> ReplyKeyboardMarkup:
@@ -79,9 +80,23 @@ async def import_words_handler(message: Message, state: FSMContext) -> None:
         return
     await state.set_state(BulkImportForm.mode)
     await message.answer(
-        "Формат: georgian | russian | topic\nПример: მივდივარ | я иду | движение",
+        f"Формат: georgian | russian | topic\nПример: მივდივარ | я иду | движение\nЛимит за один импорт: {IMPORT_MAX_WORDS} строк.",
         reply_markup=import_mode_menu(),
     )
+
+
+@router.message(F.text == "📤 Экспорт слов")
+async def export_words_handler(message: Message, state: FSMContext) -> None:
+    if not await ensure_admin_or_reply(message, state):
+        return
+    async with SessionLocal() as session:
+        rows = await WordService(session).export_words_rows()
+
+    lines = [f"{georgian} | {russian} | {topic}" for georgian, russian, topic in rows]
+    payload = "\n".join(lines) if lines else ""
+    file = BufferedInputFile(payload.encode("utf-8"), filename="words_export.txt")
+    await message.answer_document(file, caption=f"Экспорт слов: {len(rows)}")
+    logger.info("admin_action export_words admin_id={} count={}", message.from_user.id, len(rows))
 
 
 @router.message(F.text == "✏️ Редактировать слово")
@@ -130,6 +145,18 @@ async def import_words_mode_handler(message: Message, state: FSMContext) -> None
 async def import_words_payload_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     is_dry_run = bool(data.get("import_dry_run", False))
+    lines = [
+        line.strip()
+        for line in (message.text or "").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    if len(lines) > IMPORT_MAX_WORDS:
+        await message.answer(
+            f"Слишком много строк: {len(lines)}. Максимум за один импорт — {IMPORT_MAX_WORDS}.",
+            reply_markup=cancel_menu(),
+        )
+        return
+
     async with SessionLocal() as session:
         report = await WordService(session).bulk_import_from_text(message.text or "", dry_run=is_dry_run)
     logger.info(

@@ -26,6 +26,7 @@ class StatsService:
                 "due_words": 0,
                 "total_correct": 0,
                 "total_wrong": 0,
+                "streak_days": 0,
             }
 
         trained_words_result = await self.session.execute(
@@ -66,6 +67,7 @@ class StatsService:
             "due_words": due_words,
             "total_correct": total_correct,
             "total_wrong": total_wrong,
+            "streak_days": user.streak_days or 0,
         }
 
     async def get_hard_words(self, limit: int = 10) -> list[tuple[str, str, int, int]]:

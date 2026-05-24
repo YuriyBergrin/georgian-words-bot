@@ -22,11 +22,13 @@ def get_help_text() -> str:
 async def start_handler(message: Message) -> None:
     async with SessionLocal() as session:
         service = UserService(session)
-        await service.get_or_create_user(
+        user = await service.get_or_create_user(
             telegram_id=message.from_user.id,
             username=message.from_user.username,
             first_name=message.from_user.first_name,
         )
+        await service.touch_daily_streak(user)
+        await session.commit()
 
     redis = get_redis()
     await redis.incr(f"user:{message.from_user.id}:starts")

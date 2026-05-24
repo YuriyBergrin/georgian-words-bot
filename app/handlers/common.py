@@ -31,6 +31,7 @@ async def stats_handler(message: Message) -> None:
 
     text = (
         "📊 Твоя статистика:\n\n"
+        f"• Серия дней подряд: {stats['streak_days']}\n"
         f"• Всего слов в базе: {stats['total_words']}\n"
         f"• Уже тренировал(а): {stats['trained_words']}\n"
         f"• Доступно к повторению сейчас: {stats['due_words']}\n"
