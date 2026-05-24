@@ -1,4 +1,4 @@
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.topic import Topic
@@ -75,6 +75,7 @@ class WordService:
         if dry_run:
             await self.session.rollback()
         else:
+            await self._cleanup_unused_topics()
             await self.session.commit()
         return {"added": added, "updated": updated, "skipped": skipped, "errors_count": len(errors), "errors": errors}
 
@@ -86,6 +87,7 @@ class WordService:
 
         word.russian = new_russian
         word.topic_id = await self._get_or_create_topic_id(new_topic_name)
+        await self._cleanup_unused_topics()
         await self.session.commit()
         return True
 
@@ -140,6 +142,7 @@ class WordService:
         if word is None:
             return False
         await self.session.delete(word)
+        await self._cleanup_unused_topics()
         await self.session.commit()
         return True
 
@@ -168,3 +171,10 @@ class WordService:
             self.session.add(topic)
             await self.session.flush()
         return topic.id
+
+    async def _cleanup_unused_topics(self) -> None:
+        await self.session.execute(
+            delete(Topic).where(
+                ~exists(select(Word.id).where(Word.topic_id == Topic.id))
+            )
+        )
