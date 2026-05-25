@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.topic import Topic
@@ -33,3 +33,15 @@ class TopicService:
             .order_by(Word.georgian.asc())
         )
         return [(georgian, russian) for georgian, russian in result.all()]
+
+    async def delete_topic_with_words(self, topic_name: str) -> int | None:
+        topic_result = await self.session.execute(
+            select(Topic).where(func.lower(Topic.name) == topic_name.lower()).limit(1)
+        )
+        topic = topic_result.scalar_one_or_none()
+        if topic is None:
+            return None
+
+        deleted_words_result = await self.session.execute(delete(Word).where(Word.topic_id == topic.id))
+        await self.session.delete(topic)
+        return deleted_words_result.rowcount or 0

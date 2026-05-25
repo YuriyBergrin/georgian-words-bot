@@ -36,3 +36,5 @@ class DeleteWordForm(StatesGroup):
 
 class BrowseTopicsForm(StatesGroup):
     topic = State()
+    delete_topic = State()
+    delete_topic_confirm = State()
