@@ -1,4 +1,5 @@
 from aiogram import F, Router
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
@@ -43,6 +44,12 @@ async def global_cancel_handler(message: Message, state: FSMContext) -> None:
 
 @router.message(F.text == "🏠 Главное меню")
 async def back_to_main_menu_handler(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
+
+
+@router.message(Command("menu"))
+async def menu_command_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
 
