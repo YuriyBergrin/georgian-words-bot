@@ -32,3 +32,7 @@ class SearchWordForm(StatesGroup):
 
 class DeleteWordForm(StatesGroup):
     georgian = State()
+
+
+class BrowseTopicsForm(StatesGroup):
+    topic = State()

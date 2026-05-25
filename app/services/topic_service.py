@@ -23,3 +23,13 @@ class TopicService:
             .limit(1)
         )
         return result.scalar_one_or_none() is not None
+
+    async def get_topic_words(self, topic_name: str) -> list[tuple[str, str]]:
+        result = await self.session.execute(
+            select(Word.georgian, Word.russian)
+            .select_from(Word)
+            .join(Topic, Word.topic_id == Topic.id)
+            .where(func.lower(Topic.name) == topic_name.lower())
+            .order_by(Word.georgian.asc())
+        )
+        return [(georgian, russian) for georgian, russian in result.all()]

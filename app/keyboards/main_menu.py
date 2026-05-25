@@ -2,11 +2,12 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 ADMIN_PANEL_TEXT = "🛠 Админ-меню"
 BACK_TO_MAIN_MENU_TEXT = "🔙 Назад в меню"
+VIEW_TOPICS_TEXT = "🗂 Топики слов"
 
 
 def get_main_menu(is_admin_user: bool) -> ReplyKeyboardMarkup:
     keyboard: list[list[KeyboardButton]] = [
-        [KeyboardButton(text="📚 Учить слова")],
+        [KeyboardButton(text="📚 Учить слова"), KeyboardButton(text=VIEW_TOPICS_TEXT)],
         [KeyboardButton(text=ADMIN_PANEL_TEXT)],
     ]
     if is_admin_user:

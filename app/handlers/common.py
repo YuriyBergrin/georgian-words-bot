@@ -4,9 +4,12 @@ from aiogram.types import Message
 
 from app.db.session import SessionLocal
 from app.handlers.common_helpers import CANCEL_TEXT, is_admin_user
+from app.handlers.states import BrowseTopicsForm
 from app.handlers.start import get_help_text
-from app.keyboards.main_menu import ADMIN_PANEL_TEXT, get_admin_menu, get_main_menu
+from app.keyboards.main_menu import ADMIN_PANEL_TEXT, VIEW_TOPICS_TEXT, get_admin_menu, get_main_menu
+from app.keyboards.training import topics_menu
 from app.services.stats_service import StatsService
+from app.services.topic_service import TopicService
 
 router = Router()
 
@@ -52,3 +55,36 @@ async def stats_handler(message: Message) -> None:
 @router.message(F.text == "❓ Помощь")
 async def help_button_handler(message: Message) -> None:
     await message.answer(get_help_text())
+
+
+@router.message(F.text == VIEW_TOPICS_TEXT)
+async def browse_topics_handler(message: Message, state: FSMContext) -> None:
+    async with SessionLocal() as session:
+        topics = await TopicService(session).list_topics_with_words()
+
+    if not topics:
+        await state.clear()
+        await message.answer("Пока нет топиков со словами.", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
+        return
+
+    await state.set_state(BrowseTopicsForm.topic)
+    await message.answer("Выбери топик:", reply_markup=topics_menu(topics))
+
+
+@router.message(BrowseTopicsForm.topic)
+async def topic_selected_for_view_handler(message: Message, state: FSMContext) -> None:
+    topic_name = message.text.strip()
+    async with SessionLocal() as session:
+        topic_service = TopicService(session)
+        topic_exists = await topic_service.topic_exists_with_words(topic_name)
+        topics = await topic_service.list_topics_with_words()
+
+        if not topic_exists:
+            await message.answer("Выбери топик из списка.", reply_markup=topics_menu(topics))
+            return
+
+        words = await topic_service.get_topic_words(topic_name)
+
+    words_lines = [f"{index}. {georgian} — {russian}" for index, (georgian, russian) in enumerate(words, start=1)]
+    text = f"🗂 Топик: {topic_name}\n\n" + "\n".join(words_lines)
+    await message.answer(text, reply_markup=topics_menu(topics))
