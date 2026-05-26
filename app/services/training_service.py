@@ -21,7 +21,9 @@ class TrainingService:
         self.scoring = TrainingScoringService(session)
 
     async def get_or_create_user(self, telegram_id: int, username: str | None, first_name: str | None) -> User:
-        return await self.user_service.get_or_create_user_in_session(telegram_id, username, first_name)
+        user = await self.user_service.get_or_create_user_in_session(telegram_id, username, first_name)
+        await self.user_service.touch_daily_streak(user)
+        return user
 
     async def get_random_word(
         self,

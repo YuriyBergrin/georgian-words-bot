@@ -6,6 +6,8 @@ from app.services.training_selection_service import TrainingSelectionService
 from app.services.topic_service import TopicService
 from app.services.training_service import TrainingService
 from app.services.user_service import UserService
+from app.services.word_import_service import WordImportService
+from app.services.word_query_service import WordQueryService
 from app.services.word_service import WordService
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "TopicService",
     "StatsService",
     "WordService",
+    "WordImportService",
+    "WordQueryService",
 ]

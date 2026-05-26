@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
 from app.db.session import SessionLocal
-from app.handlers.common_helpers import CANCEL_TEXT, is_admin_user
+from app.handlers.common_helpers import CANCEL_TEXT, clear_and_reply_main_menu, is_admin_user
 from app.handlers.states import BrowseTopicsForm
 from app.handlers.start import get_help_text
 from app.keyboards.main_menu import ADMIN_PANEL_TEXT, VIEW_TOPICS_TEXT, get_admin_menu, get_main_menu
@@ -38,20 +38,17 @@ def confirm_delete_topic_menu() -> ReplyKeyboardMarkup:
 
 @router.message(F.text == CANCEL_TEXT)
 async def global_cancel_handler(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
+    await clear_and_reply_main_menu(message, state)
 
 
 @router.message(F.text == "🏠 Главное меню")
 async def back_to_main_menu_handler(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
+    await clear_and_reply_main_menu(message, state)
 
 
 @router.message(Command("menu"))
 async def menu_command_handler(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
+    await clear_and_reply_main_menu(message, state)
 
 
 @router.message(F.text == ADMIN_PANEL_TEXT)

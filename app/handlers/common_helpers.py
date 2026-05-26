@@ -35,3 +35,12 @@ async def ensure_admin_or_reply(message: Message, state: FSMContext) -> bool:
 async def is_admin_user(telegram_id: int) -> bool:
     async with SessionLocal() as session:
         return await AdminService(session).is_admin(telegram_id)
+
+
+async def reply_main_menu(message: Message) -> None:
+    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
+
+
+async def clear_and_reply_main_menu(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await reply_main_menu(message)

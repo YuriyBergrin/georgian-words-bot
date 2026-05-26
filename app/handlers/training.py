@@ -7,8 +7,8 @@ from loguru import logger
 from sqlalchemy import select
 
 from app.db.session import SessionLocal
+from app.handlers.common_helpers import clear_and_reply_main_menu, is_admin_user, normalize_text
 from app.handlers.states import LearnWordForm
-from app.handlers.common_helpers import is_admin_user, normalize_text
 from app.keyboards.learn_menu import learn_menu
 from app.keyboards.main_menu import get_main_menu
 from app.keyboards.training import (
@@ -26,6 +26,22 @@ from app.services.topic_service import TopicService
 from app.services.training_service import TrainingService
 
 router = Router()
+
+
+async def _prepare_question_payload(training_service: TrainingService, word: Word, direction: str) -> tuple[str, str, bool, list[str]]:
+    question_text, expected_answer = training_service.build_question(word, direction=direction)
+    is_choice_question = direction == TrainingService.DIRECTION_GE_RU or (
+        direction == TrainingService.DIRECTION_RU_GE and random.choice([True, False])
+    )
+    options: list[str] = []
+    if is_choice_question:
+        answer_language = "russian" if direction == TrainingService.DIRECTION_GE_RU else "georgian"
+        options = await training_service.build_translation_options(
+            correct_answer=expected_answer,
+            word_id=word.id,
+            answer_language=answer_language,
+        )
+    return question_text, expected_answer, is_choice_question, options
 
 
 async def send_random_word(message: Message, state: FSMContext) -> None:
@@ -55,17 +71,9 @@ async def send_random_word(message: Message, state: FSMContext) -> None:
             if repeat_word is not None:
                 word = repeat_word
                 direction = repeat_direction
-                question_text, expected_answer = training_service.build_question(word, direction=direction)
-                is_choice_question = direction == TrainingService.DIRECTION_GE_RU or (
-                    direction == TrainingService.DIRECTION_RU_GE and random.choice([True, False])
+                question_text, expected_answer, is_choice_question, options = await _prepare_question_payload(
+                    training_service, word, direction
                 )
-                if is_choice_question:
-                    answer_language = "russian" if direction == TrainingService.DIRECTION_GE_RU else "georgian"
-                    options = await training_service.build_translation_options(
-                        correct_answer=expected_answer,
-                        word_id=word.id,
-                        answer_language=answer_language,
-                    )
                 await state.update_data(repeat_word_id=None, repeat_direction=None, repeat_remaining=0)
 
         if word is None:
@@ -84,17 +92,9 @@ async def send_random_word(message: Message, state: FSMContext) -> None:
 
             if word_with_direction is not None:
                 word, direction = word_with_direction
-                question_text, expected_answer = training_service.build_question(word, direction=direction)
-                is_choice_question = direction == TrainingService.DIRECTION_GE_RU or (
-                    direction == TrainingService.DIRECTION_RU_GE and random.choice([True, False])
+                question_text, expected_answer, is_choice_question, options = await _prepare_question_payload(
+                    training_service, word, direction
                 )
-                if is_choice_question:
-                    answer_language = "russian" if direction == TrainingService.DIRECTION_GE_RU else "georgian"
-                    options = await training_service.build_translation_options(
-                        correct_answer=expected_answer,
-                        word_id=word.id,
-                        answer_language=answer_language,
-                    )
                 if repeat_word_id and repeat_direction and repeat_remaining > 0:
                     await state.update_data(repeat_remaining=repeat_remaining - 1)
         await session.commit()
@@ -176,8 +176,7 @@ async def learn_by_topic_mode_handler(message: Message, state: FSMContext) -> No
 async def learn_topic_selected_handler(message: Message, state: FSMContext) -> None:
     topic_name = message.text.strip()
     if topic_name == BACK_TO_MENU_TEXT:
-        await state.clear()
-        await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
+        await clear_and_reply_main_menu(message, state)
         return
 
     async with SessionLocal() as session:
@@ -198,8 +197,7 @@ async def learn_topic_selected_handler(message: Message, state: FSMContext) -> N
 @router.message(LearnWordForm.mode, F.text == BACK_TO_MENU_TEXT)
 @router.message(LearnWordForm.topic, F.text == BACK_TO_MENU_TEXT)
 async def back_from_training_mode_to_menu_handler(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
+    await clear_and_reply_main_menu(message, state)
 
 
 @router.message(F.text == REPEAT_TOPIC_TEXT)
@@ -228,14 +226,12 @@ async def repeat_topic_handler(message: Message, state: FSMContext) -> None:
 
 @router.message(LearnWordForm.answer, F.text == "🏠 Главное меню")
 async def back_to_main_menu_from_answer_handler(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
+    await clear_and_reply_main_menu(message, state)
 
 
 @router.message(LearnWordForm.answer, F.text == BACK_TO_MENU_TEXT)
 async def back_to_main_menu_from_answer_back_handler(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Главное меню", reply_markup=get_main_menu(await is_admin_user(message.from_user.id)))
+    await clear_and_reply_main_menu(message, state)
 
 
 @router.message(LearnWordForm.answer)
