@@ -1,4 +1,5 @@
 from aiogram import F, Router
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, Message
 from loguru import logger
@@ -21,7 +22,7 @@ router.include_router(edit_router)
 router.include_router(add_router)
 
 
-@router.message(F.text == "➕ Добавить слово")
+@router.message(StateFilter(None), F.text == "➕ Добавить слово")
 async def add_word_handler(message: Message, state: FSMContext) -> None:
     if not await ensure_admin_or_reply(message, state):
         return
@@ -29,7 +30,7 @@ async def add_word_handler(message: Message, state: FSMContext) -> None:
     await message.answer("Введите грузинское слово:", reply_markup=cancel_menu())
 
 
-@router.message(F.text == "📥 Импорт слов")
+@router.message(StateFilter(None), F.text == "📥 Импорт слов")
 async def import_words_handler(message: Message, state: FSMContext) -> None:
     if not await ensure_admin_or_reply(message, state):
         return
@@ -40,7 +41,7 @@ async def import_words_handler(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(F.text == "📤 Экспорт слов")
+@router.message(StateFilter(None), F.text == "📤 Экспорт слов")
 async def export_words_handler(message: Message, state: FSMContext) -> None:
     if not await ensure_admin_or_reply(message, state):
         return
@@ -54,7 +55,7 @@ async def export_words_handler(message: Message, state: FSMContext) -> None:
     logger.info("admin_action export_words admin_id={} count={}", message.from_user.id, len(rows))
 
 
-@router.message(F.text == EDIT_WORD_TEXT)
+@router.message(StateFilter(None), F.text == EDIT_WORD_TEXT)
 async def edit_word_handler(message: Message, state: FSMContext) -> None:
     if not await ensure_admin_or_reply(message, state):
         return
@@ -62,7 +63,7 @@ async def edit_word_handler(message: Message, state: FSMContext) -> None:
     await message.answer("Введи грузинское слово для редактирования:", reply_markup=cancel_menu())
 
 
-@router.message(F.text == "🔎 Найти слово")
+@router.message(StateFilter(None), F.text == "🔎 Найти слово")
 async def search_words_handler(message: Message, state: FSMContext) -> None:
     if not await ensure_admin_or_reply(message, state):
         return
