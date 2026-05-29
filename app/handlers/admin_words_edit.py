@@ -39,6 +39,20 @@ async def edit_word_georgian_handler(message: Message, state: FSMContext) -> Non
         current_topic = await word_service.get_word_topic_name(georgian)
 
     await state.update_data(georgian=georgian, current_topic=current_topic)
+    await state.set_state(EditWordForm.georgian_new)
+    await message.answer(
+        f"Текущее грузинское слово: {georgian}\nВведи новое грузинское слово (или отправь текущее без изменений):",
+        reply_markup=cancel_menu(),
+    )
+
+
+@router.message(EditWordForm.georgian_new)
+async def edit_word_georgian_new_handler(message: Message, state: FSMContext) -> None:
+    new_georgian = message.text.strip()
+    if not new_georgian:
+        await message.answer("Грузинское слово не может быть пустым. Введи значение:", reply_markup=cancel_menu())
+        return
+    await state.update_data(georgian_new=new_georgian)
     await state.set_state(EditWordForm.russian)
     await message.answer("Введи новый русский перевод:", reply_markup=cancel_menu())
 
@@ -63,6 +77,7 @@ async def edit_word_russian_handler(message: Message, state: FSMContext) -> None
 async def edit_word_topic_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     georgian = data["georgian"]
+    georgian_new = data["georgian_new"]
     russian = data["russian"]
     current_topic = data.get("current_topic")
     topics = data.get("edit_topics", [])
@@ -79,21 +94,25 @@ async def edit_word_topic_handler(message: Message, state: FSMContext) -> None:
         return
 
     async with SessionLocal() as session:
-        updated = await WordService(session).update_word(
+        update_status = await WordService(session).update_word(
             georgian=georgian,
+            new_georgian=georgian_new,
             new_russian=russian,
             new_topic_name=topic_name,
         )
     logger.info(
-        "admin_action edit_word admin_id={} georgian={} updated={} topic={}",
+        "admin_action edit_word admin_id={} georgian={} georgian_new={} status={} topic={}",
         message.from_user.id,
         georgian,
-        updated,
+        georgian_new,
+        update_status,
         topic_name,
     )
 
     await state.clear()
-    if updated:
+    if update_status == "updated":
         await message.answer("Слово обновлено.", reply_markup=get_admin_menu())
+    elif update_status == "duplicate":
+        await message.answer("Такое грузинское слово уже есть в словаре.", reply_markup=get_admin_menu())
     else:
         await message.answer("Слово не найдено.", reply_markup=get_admin_menu())

@@ -73,6 +73,7 @@ async def search_words_handler(message: Message, state: FSMContext) -> None:
 @router.message(BulkImportForm.payload, F.text == CANCEL_TEXT)
 @router.message(BulkImportForm.mode, F.text == CANCEL_TEXT)
 @router.message(EditWordForm.georgian, F.text == CANCEL_TEXT)
+@router.message(EditWordForm.georgian_new, F.text == CANCEL_TEXT)
 @router.message(EditWordForm.russian, F.text == CANCEL_TEXT)
 @router.message(EditWordForm.topic, F.text == CANCEL_TEXT)
 @router.message(SearchWordForm.query, F.text == CANCEL_TEXT)

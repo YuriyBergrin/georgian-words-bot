@@ -28,17 +28,26 @@ class WordService:
         await self.session.commit()
         return True
 
-    async def update_word(self, georgian: str, new_russian: str, new_topic_name: str) -> bool:
+    async def update_word(
+        self, georgian: str, new_georgian: str, new_russian: str, new_topic_name: str
+    ) -> str:
         word_result = await self.session.execute(select(Word).where(Word.georgian == georgian))
         word = word_result.scalar_one_or_none()
         if word is None:
-            return False
+            return "not_found"
 
+        if new_georgian != georgian:
+            existing_result = await self.session.execute(select(Word.id).where(Word.georgian == new_georgian).limit(1))
+            existing_word_id = existing_result.scalar_one_or_none()
+            if existing_word_id is not None:
+                return "duplicate"
+
+        word.georgian = new_georgian
         word.russian = new_russian
         word.topic_id = await self._get_or_create_topic_id(new_topic_name)
         await self._cleanup_unused_topics()
         await self.session.commit()
-        return True
+        return "updated"
 
     async def get_word_topic_name(self, georgian: str) -> str | None:
         result = await self.session.execute(

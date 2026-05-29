@@ -21,6 +21,7 @@ class BulkImportForm(StatesGroup):
 
 class EditWordForm(StatesGroup):
     georgian = State()
+    georgian_new = State()
     russian = State()
     topic = State()
 
