@@ -2,10 +2,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.word import Word
-from app.services.training_constants import DIRECTION_GE_RU, DIRECTION_RU_GE
-from app.services.training_scheduling_service import TrainingSchedulingService
-from app.services.training_scoring_service import TrainingScoringService
-from app.services.training_selection_service import TrainingSelectionService
+from app.domain.training.training_constants import DIRECTION_GE_RU, DIRECTION_RU_GE
+from app.domain.training.training_scheduling_service import TrainingSchedulingService
+from app.domain.training.training_scoring_service import TrainingScoringService
+from app.domain.training.training_selection_service import TrainingSelectionService
 from app.services.user_service import UserService
 
 

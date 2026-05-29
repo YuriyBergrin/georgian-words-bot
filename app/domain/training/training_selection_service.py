@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.topic import Topic
 from app.models.user_word_progress import UserWordProgress
 from app.models.word import Word
-from app.services.training_constants import DIRECTION_GE_RU, DIRECTION_RU_GE
+from app.domain.training.training_constants import DIRECTION_GE_RU, DIRECTION_RU_GE
 
 
 class TrainingSelectionService:

@@ -3,26 +3,22 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from loguru import logger
 
-from app.db.session import SessionLocal
 from app.handlers.admin_words_shared import KEEP_TOPIC_TEXT, REMOVE_TOPIC_TEXT, edit_topic_menu
 from app.handlers.common_helpers import cancel_menu
 from app.handlers.states import DeleteWordForm, EditWordForm
 from app.keyboards.main_menu import get_admin_menu
-from app.services.topic_service import TopicService
-from app.services.word_service import WordService
+from app.middlewares.services_middleware import AppServices
 
 router = Router()
 
 
-async def start_edit_word_flow(message: Message, state: FSMContext, georgian: str) -> None:
+async def start_edit_word_flow(message: Message, state: FSMContext, georgian: str, services: AppServices) -> None:
     georgian = georgian.strip()
-    async with SessionLocal() as session:
-        word_service = WordService(session)
-        exists = await word_service.word_exists(georgian)
-        if not exists:
-            await message.answer("Слово не найдено. Введи другое слово или нажми отмену.", reply_markup=cancel_menu())
-            return
-        current_topic = await word_service.get_word_topic_name(georgian)
+    context = await services.admin_words.get_edit_context(georgian)
+    if not context.exists:
+        await message.answer("Слово не найдено. Введи другое слово или нажми отмену.", reply_markup=cancel_menu())
+        return
+    current_topic = context.current_topic
 
     await state.update_data(georgian=georgian, current_topic=current_topic)
     await state.set_state(EditWordForm.georgian_new)
@@ -33,10 +29,9 @@ async def start_edit_word_flow(message: Message, state: FSMContext, georgian: st
 
 
 @router.message(DeleteWordForm.georgian)
-async def delete_word_handler(message: Message, state: FSMContext) -> None:
+async def delete_word_handler(message: Message, state: FSMContext, services: AppServices) -> None:
     georgian = message.text.strip()
-    async with SessionLocal() as session:
-        deleted = await WordService(session).delete_word(georgian)
+    deleted = await services.admin_words.delete_word(georgian)
     logger.info("admin_action delete_word admin_id={} georgian={} deleted={}", message.from_user.id, georgian, deleted)
     await state.clear()
     if deleted:
@@ -46,8 +41,8 @@ async def delete_word_handler(message: Message, state: FSMContext) -> None:
 
 
 @router.message(EditWordForm.georgian)
-async def edit_word_georgian_handler(message: Message, state: FSMContext) -> None:
-    await start_edit_word_flow(message, state, message.text or "")
+async def edit_word_georgian_handler(message: Message, state: FSMContext, services: AppServices) -> None:
+    await start_edit_word_flow(message, state, message.text or "", services)
 
 
 @router.message(EditWordForm.georgian_new)
@@ -62,13 +57,12 @@ async def edit_word_georgian_new_handler(message: Message, state: FSMContext) ->
 
 
 @router.message(EditWordForm.russian)
-async def edit_word_russian_handler(message: Message, state: FSMContext) -> None:
+async def edit_word_russian_handler(message: Message, state: FSMContext, services: AppServices) -> None:
     await state.update_data(russian=message.text.strip())
     await state.set_state(EditWordForm.topic)
     data = await state.get_data()
     current_topic = data.get("current_topic")
-    async with SessionLocal() as session:
-        topics = await TopicService(session).list_topics_with_words()
+    topics = await services.admin_words.list_topics_with_words()
     await state.update_data(edit_topics=topics)
     current_topic_text = current_topic if current_topic is not None else "без темы"
     await message.answer(
@@ -78,7 +72,7 @@ async def edit_word_russian_handler(message: Message, state: FSMContext) -> None
 
 
 @router.message(EditWordForm.topic)
-async def edit_word_topic_handler(message: Message, state: FSMContext) -> None:
+async def edit_word_topic_handler(message: Message, state: FSMContext, services: AppServices) -> None:
     data = await state.get_data()
     georgian = data["georgian"]
     georgian_new = data["georgian_new"]
@@ -97,13 +91,12 @@ async def edit_word_topic_handler(message: Message, state: FSMContext) -> None:
         await message.answer("Выбери тему кнопкой.", reply_markup=edit_topic_menu(topics, current_topic))
         return
 
-    async with SessionLocal() as session:
-        update_status = await WordService(session).update_word(
-            georgian=georgian,
-            new_georgian=georgian_new,
-            new_russian=russian,
-            new_topic_name=topic_name,
-        )
+    update_status = await services.admin_words.update_word(
+        georgian=georgian,
+        new_georgian=georgian_new,
+        new_russian=russian,
+        new_topic_name=topic_name,
+    )
     logger.info(
         "admin_action edit_word admin_id={} georgian={} georgian_new={} status={} topic={}",
         message.from_user.id,

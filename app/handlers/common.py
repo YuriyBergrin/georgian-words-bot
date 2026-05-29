@@ -3,14 +3,12 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
-from app.db.session import SessionLocal
-from app.handlers.common_helpers import CANCEL_TEXT, clear_and_reply_main_menu, is_admin_user
+from app.handlers.common_helpers import CANCEL_TEXT, clear_and_reply_main_menu
 from app.handlers.states import BrowseTopicsForm
 from app.handlers.start import get_help_text
 from app.keyboards.main_menu import ADMIN_PANEL_TEXT, VIEW_TOPICS_TEXT, get_admin_menu, get_main_menu
 from app.keyboards.training import topics_menu
-from app.services.stats_service import StatsService
-from app.services.topic_service import TopicService
+from app.middlewares.services_middleware import AppServices
 
 router = Router()
 DELETE_TOPIC_TEXT = "🗑 Удалить топик"
@@ -37,33 +35,32 @@ def confirm_delete_topic_menu() -> ReplyKeyboardMarkup:
 
 
 @router.message(F.text == CANCEL_TEXT)
-async def global_cancel_handler(message: Message, state: FSMContext) -> None:
-    await clear_and_reply_main_menu(message, state)
+async def global_cancel_handler(message: Message, state: FSMContext, services: AppServices) -> None:
+    await clear_and_reply_main_menu(message, state, is_admin=await services.access.is_admin_user(message.from_user.id))
 
 
 @router.message(F.text == "🏠 Главное меню")
-async def back_to_main_menu_handler(message: Message, state: FSMContext) -> None:
-    await clear_and_reply_main_menu(message, state)
+async def back_to_main_menu_handler(message: Message, state: FSMContext, services: AppServices) -> None:
+    await clear_and_reply_main_menu(message, state, is_admin=await services.access.is_admin_user(message.from_user.id))
 
 
 @router.message(Command("menu"))
-async def menu_command_handler(message: Message, state: FSMContext) -> None:
-    await clear_and_reply_main_menu(message, state)
+async def menu_command_handler(message: Message, state: FSMContext, services: AppServices) -> None:
+    await clear_and_reply_main_menu(message, state, is_admin=await services.access.is_admin_user(message.from_user.id))
 
 
 @router.message(F.text == ADMIN_PANEL_TEXT)
-async def admin_panel_handler(message: Message, state: FSMContext) -> None:
+async def admin_panel_handler(message: Message, state: FSMContext, services: AppServices) -> None:
     await state.clear()
-    if not await is_admin_user(message.from_user.id):
+    if not await services.access.is_admin_user(message.from_user.id):
         await message.answer("У вас нет прав администратора", reply_markup=get_main_menu(False))
         return
     await message.answer("Меню администрирования", reply_markup=get_admin_menu())
 
 
 @router.message(F.text == "📊 Статистика")
-async def stats_handler(message: Message) -> None:
-    async with SessionLocal() as session:
-        stats = await StatsService(session).get_user_stats(message.from_user.id)
+async def stats_handler(message: Message, services: AppServices) -> None:
+    stats = await services.common.get_user_stats(message.from_user.id)
 
     text = (
         "📊 Твоя статистика:\n\n"
@@ -83,10 +80,9 @@ async def help_button_handler(message: Message) -> None:
 
 
 @router.message(F.text == VIEW_TOPICS_TEXT)
-async def browse_topics_handler(message: Message, state: FSMContext) -> None:
-    admin_mode = await is_admin_user(message.from_user.id)
-    async with SessionLocal() as session:
-        topics = await TopicService(session).list_topics_with_words()
+async def browse_topics_handler(message: Message, state: FSMContext, services: AppServices) -> None:
+    admin_mode = await services.access.is_admin_user(message.from_user.id)
+    topics = await services.common.list_topics_with_words()
 
     if not topics:
         await state.clear()
@@ -98,31 +94,26 @@ async def browse_topics_handler(message: Message, state: FSMContext) -> None:
 
 
 @router.message(BrowseTopicsForm.topic)
-async def topic_selected_for_view_handler(message: Message, state: FSMContext) -> None:
+async def topic_selected_for_view_handler(message: Message, state: FSMContext, services: AppServices) -> None:
     topic_name = message.text.strip()
-    admin_mode = await is_admin_user(message.from_user.id)
+    admin_mode = await services.access.is_admin_user(message.from_user.id)
 
     if topic_name == DELETE_TOPIC_TEXT:
         if not admin_mode:
             await state.clear()
             await message.answer("У вас нет прав администратора", reply_markup=get_main_menu(False))
             return
-        async with SessionLocal() as session:
-            topics = await TopicService(session).list_topics_with_words()
+        topics = await services.common.list_topics_with_words()
         await state.set_state(BrowseTopicsForm.delete_topic)
         await message.answer("Выбери топик для удаления:", reply_markup=topics_menu(topics))
         return
 
-    async with SessionLocal() as session:
-        topic_service = TopicService(session)
-        topic_exists = await topic_service.topic_exists_with_words(topic_name)
-        topics = await topic_service.list_topics_with_words()
-
-        if not topic_exists:
-            await message.answer("Выбери топик из списка.", reply_markup=browse_topics_menu(topics, admin_mode))
-            return
-
-        words = await topic_service.get_topic_words(topic_name)
+    topic_exists = await services.common.topic_exists_with_words(topic_name)
+    topics = await services.common.list_topics_with_words()
+    if not topic_exists:
+        await message.answer("Выбери топик из списка.", reply_markup=browse_topics_menu(topics, admin_mode))
+        return
+    words = await services.common.get_topic_words(topic_name)
 
     words_lines = [f"{index}. {georgian} — {russian}" for index, (georgian, russian) in enumerate(words, start=1)]
     text = f"🗂 Топик: {topic_name}\n\n" + "\n".join(words_lines)
@@ -130,20 +121,18 @@ async def topic_selected_for_view_handler(message: Message, state: FSMContext) -
 
 
 @router.message(BrowseTopicsForm.delete_topic)
-async def delete_topic_from_menu_handler(message: Message, state: FSMContext) -> None:
-    if not await is_admin_user(message.from_user.id):
+async def delete_topic_from_menu_handler(message: Message, state: FSMContext, services: AppServices) -> None:
+    if not await services.access.is_admin_user(message.from_user.id):
         await state.clear()
         await message.answer("У вас нет прав администратора", reply_markup=get_main_menu(False))
         return
 
     topic_name = message.text.strip()
-    async with SessionLocal() as session:
-        topic_service = TopicService(session)
-        topic_exists = await topic_service.topic_exists_with_words(topic_name)
-        topics = await topic_service.list_topics_with_words()
-        if not topic_exists:
-            await message.answer("Выбери топик из списка.", reply_markup=topics_menu(topics))
-            return
+    topic_exists = await services.common.topic_exists_with_words(topic_name)
+    topics = await services.common.list_topics_with_words()
+    if not topic_exists:
+        await message.answer("Выбери топик из списка.", reply_markup=topics_menu(topics))
+        return
 
     await state.update_data(delete_topic_name=topic_name)
     await state.set_state(BrowseTopicsForm.delete_topic_confirm)
@@ -154,36 +143,31 @@ async def delete_topic_from_menu_handler(message: Message, state: FSMContext) ->
 
 
 @router.message(BrowseTopicsForm.delete_topic_confirm, F.text == CONFIRM_DELETE_TOPIC_NO_TEXT)
-async def cancel_topic_delete_confirmation_handler(message: Message, state: FSMContext) -> None:
-    async with SessionLocal() as session:
-        topics = await TopicService(session).list_topics_with_words()
+async def cancel_topic_delete_confirmation_handler(message: Message, state: FSMContext, services: AppServices) -> None:
+    topics = await services.common.list_topics_with_words()
     await state.set_state(BrowseTopicsForm.topic)
     await state.update_data(delete_topic_name=None)
     await message.answer("Удаление отменено.", reply_markup=browse_topics_menu(topics, True))
 
 
 @router.message(BrowseTopicsForm.delete_topic_confirm, F.text == CONFIRM_DELETE_TOPIC_YES_TEXT)
-async def confirm_topic_delete_handler(message: Message, state: FSMContext) -> None:
+async def confirm_topic_delete_handler(message: Message, state: FSMContext, services: AppServices) -> None:
     data = await state.get_data()
     topic_name = (data.get("delete_topic_name") or "").strip()
     if not topic_name:
         await state.set_state(BrowseTopicsForm.topic)
-        async with SessionLocal() as session:
-            topics = await TopicService(session).list_topics_with_words()
+        topics = await services.common.list_topics_with_words()
         await message.answer("Не удалось определить топик. Выбери заново.", reply_markup=browse_topics_menu(topics, True))
         return
 
-    async with SessionLocal() as session:
-        topic_service = TopicService(session)
-        deleted_words = await topic_service.delete_topic_with_words(topic_name)
-        if deleted_words is None:
-            topics = await topic_service.list_topics_with_words()
-            await state.set_state(BrowseTopicsForm.topic)
-            await state.update_data(delete_topic_name=None)
-            await message.answer("Топик уже удалён или не найден.", reply_markup=browse_topics_menu(topics, True))
-            return
-        await session.commit()
-        topics = await topic_service.list_topics_with_words()
+    deleted_words = await services.common.delete_topic_with_words(topic_name)
+    if deleted_words is None:
+        topics = await services.common.list_topics_with_words()
+        await state.set_state(BrowseTopicsForm.topic)
+        await state.update_data(delete_topic_name=None)
+        await message.answer("Топик уже удалён или не найден.", reply_markup=browse_topics_menu(topics, True))
+        return
+    topics = await services.common.list_topics_with_words()
 
     await state.set_state(BrowseTopicsForm.topic)
     await state.update_data(delete_topic_name=None)

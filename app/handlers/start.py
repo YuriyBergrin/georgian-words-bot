@@ -6,8 +6,8 @@ from aiogram.types import Message
 
 from app.db.redis import get_redis
 from app.db.session import SessionLocal
-from app.handlers.common_helpers import is_admin_user
 from app.keyboards.main_menu import get_main_menu
+from app.middlewares.services_middleware import AppServices
 from app.services.user_service import UserService
 
 router = Router()
@@ -19,7 +19,7 @@ def get_help_text() -> str:
 
 
 @router.message(CommandStart())
-async def start_handler(message: Message) -> None:
+async def start_handler(message: Message, services: AppServices) -> None:
     async with SessionLocal() as session:
         service = UserService(session)
         user = await service.get_or_create_user(
@@ -35,7 +35,7 @@ async def start_handler(message: Message) -> None:
 
     await message.answer(
         "Привет! Я бот для изучения грузинских слов. Начнем учить სიტყვები!",
-        reply_markup=get_main_menu(await is_admin_user(message.from_user.id)),
+        reply_markup=get_main_menu(await services.access.is_admin_user(message.from_user.id)),
     )
 
 

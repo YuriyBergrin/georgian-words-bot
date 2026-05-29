@@ -5,7 +5,7 @@ from app.models.topic import Topic
 from app.models.word import Word
 
 
-class WordQueryService:
+class WordQueryRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
@@ -15,13 +15,7 @@ class WordQueryService:
             select(Word.georgian, Word.russian, Topic.name)
             .select_from(Word)
             .outerjoin(Topic, Word.topic_id == Topic.id)
-            .where(
-                or_(
-                    Word.georgian.ilike(pattern),
-                    Word.russian.ilike(pattern),
-                    Topic.name.ilike(pattern),
-                )
-            )
+            .where(or_(Word.georgian.ilike(pattern), Word.russian.ilike(pattern), Topic.name.ilike(pattern)))
             .order_by(Word.georgian.asc())
             .offset(offset)
             .limit(limit)
@@ -34,13 +28,7 @@ class WordQueryService:
             select(func.count(Word.id))
             .select_from(Word)
             .outerjoin(Topic, Word.topic_id == Topic.id)
-            .where(
-                or_(
-                    Word.georgian.ilike(pattern),
-                    Word.russian.ilike(pattern),
-                    Topic.name.ilike(pattern),
-                )
-            )
+            .where(or_(Word.georgian.ilike(pattern), Word.russian.ilike(pattern), Topic.name.ilike(pattern)))
         )
         return result.scalar_one()
 
@@ -51,7 +39,4 @@ class WordQueryService:
             .outerjoin(Topic, Word.topic_id == Topic.id)
             .order_by(Word.georgian.asc())
         )
-        rows = []
-        for georgian, russian, topic_name in result.all():
-            rows.append((georgian, russian, topic_name or "-"))
-        return rows
+        return [(georgian, russian, topic_name or "-") for georgian, russian, topic_name in result.all()]

@@ -2,7 +2,6 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
-from app.db.session import SessionLocal
 from app.handlers.admin_words_edit import start_edit_word_flow
 from app.handlers.admin_words_shared import (
     DELETE_WORD_TEXT,
@@ -14,20 +13,19 @@ from app.handlers.admin_words_shared import (
 )
 from app.handlers.common_helpers import cancel_menu
 from app.handlers.states import DeleteWordForm, SearchWordForm
-from app.services.word_query_service import WordQueryService
+from app.middlewares.services_middleware import AppServices
 
 router = Router()
 
 
-async def _render_search_page(message: Message, state: FSMContext) -> None:
+async def _render_search_page(message: Message, state: FSMContext, services: AppServices) -> None:
     data = await state.get_data()
     query = data.get("search_query", "")
     page = int(data.get("search_page", 0))
 
-    async with SessionLocal() as session:
-        service = WordQueryService(session)
-        total = await service.count_search_words(query)
-        rows = await service.search_words(query, offset=page * SEARCH_PAGE_SIZE, limit=SEARCH_PAGE_SIZE)
+    search_page = await services.admin_words.search_words(query=query, page=page, page_size=SEARCH_PAGE_SIZE)
+    total = search_page.total
+    rows = search_page.rows
 
     if total == 0:
         await state.set_state(SearchWordForm.query)
@@ -51,37 +49,37 @@ async def _render_search_page(message: Message, state: FSMContext) -> None:
 
 
 @router.message(SearchWordForm.query)
-async def search_words_query_handler(message: Message, state: FSMContext) -> None:
+async def search_words_query_handler(message: Message, state: FSMContext, services: AppServices) -> None:
     query = (message.text or "").strip()
     if not query:
         await message.answer("Запрос пустой. Введи текст для поиска:", reply_markup=cancel_menu())
         return
     await state.update_data(search_query=query, search_page=0)
-    await _render_search_page(message, state)
+    await _render_search_page(message, state, services)
 
 
 @router.message(SearchWordForm.browse, F.text == SEARCH_PREV_TEXT)
-async def search_words_prev_handler(message: Message, state: FSMContext) -> None:
+async def search_words_prev_handler(message: Message, state: FSMContext, services: AppServices) -> None:
     data = await state.get_data()
     page = max(int(data.get("search_page", 0)) - 1, 0)
     await state.update_data(search_page=page)
-    await _render_search_page(message, state)
+    await _render_search_page(message, state, services)
 
 
 @router.message(SearchWordForm.browse, F.text == SEARCH_NEXT_TEXT)
-async def search_words_next_handler(message: Message, state: FSMContext) -> None:
+async def search_words_next_handler(message: Message, state: FSMContext, services: AppServices) -> None:
     data = await state.get_data()
     page = int(data.get("search_page", 0)) + 1
     await state.update_data(search_page=page)
-    await _render_search_page(message, state)
+    await _render_search_page(message, state, services)
 
 
 @router.message(SearchWordForm.browse, F.text == EDIT_WORD_TEXT)
-async def edit_word_from_search_handler(message: Message, state: FSMContext) -> None:
+async def edit_word_from_search_handler(message: Message, state: FSMContext, services: AppServices) -> None:
     data = await state.get_data()
     search_rows = data.get("search_rows", [])
     if len(search_rows) == 1:
-        await start_edit_word_flow(message, state, search_rows[0])
+        await start_edit_word_flow(message, state, search_rows[0], services)
         return
     if search_rows:
         await message.answer(
@@ -112,13 +110,13 @@ async def pick_word_from_search_handler(message: Message, state: FSMContext) -> 
         idx = int(text)
         offset = idx - row_start
         if 0 <= offset < len(search_rows):
-            await start_edit_word_flow(message, state, search_rows[offset])
+            await start_edit_word_flow(message, state, search_rows[offset], services)
             return
         await message.answer("Номер вне текущей страницы. Выбери номер из списка.", reply_markup=cancel_menu())
         return
 
     if text in search_rows:
-        await start_edit_word_flow(message, state, text)
+        await start_edit_word_flow(message, state, text, services)
         return
 
     await message.answer(

@@ -2,20 +2,18 @@ from aiogram import Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 
-from app.db.session import SessionLocal
-from app.services.admin_service import AdminService
+from app.middlewares.services_middleware import AppServices
 
 router = Router()
 
 
 @router.message(Command("admins"))
-async def admins_list_handler(message: Message) -> None:
-    if not AdminService.is_bootstrap_admin(message.from_user.id):
+async def admins_list_handler(message: Message, services: AppServices) -> None:
+    if not services.admin_manage.is_bootstrap_admin(message.from_user.id):
         await message.answer("Команда доступна только bootstrap-суперадмину.")
         return
 
-    async with SessionLocal() as session:
-        ids = await AdminService(session).list_admin_ids()
+    ids = await services.admin_manage.list_admin_ids()
 
     lines = ["Текущие админы:"]
     lines.extend(f"- {admin_id}" for admin_id in ids)
@@ -23,8 +21,8 @@ async def admins_list_handler(message: Message) -> None:
 
 
 @router.message(Command("add_admin"))
-async def add_admin_handler(message: Message, command: CommandObject) -> None:
-    if not AdminService.is_bootstrap_admin(message.from_user.id):
+async def add_admin_handler(message: Message, command: CommandObject, services: AppServices) -> None:
+    if not services.admin_manage.is_bootstrap_admin(message.from_user.id):
         await message.answer("Команда доступна только bootstrap-суперадмину.")
         return
 
@@ -38,11 +36,7 @@ async def add_admin_handler(message: Message, command: CommandObject) -> None:
         await message.answer("telegram_id должен быть числом.")
         return
 
-    async with SessionLocal() as session:
-        service = AdminService(session)
-        created = await service.add_admin(telegram_id)
-        if created:
-            await session.commit()
+    created = await services.admin_manage.add_admin(telegram_id)
 
     if created:
         await message.answer(f"Админ добавлен: {telegram_id}")
@@ -51,8 +45,8 @@ async def add_admin_handler(message: Message, command: CommandObject) -> None:
 
 
 @router.message(Command("remove_admin"))
-async def remove_admin_handler(message: Message, command: CommandObject) -> None:
-    if not AdminService.is_bootstrap_admin(message.from_user.id):
+async def remove_admin_handler(message: Message, command: CommandObject, services: AppServices) -> None:
+    if not services.admin_manage.is_bootstrap_admin(message.from_user.id):
         await message.answer("Команда доступна только bootstrap-суперадмину.")
         return
 
@@ -66,11 +60,7 @@ async def remove_admin_handler(message: Message, command: CommandObject) -> None
         await message.answer("telegram_id должен быть числом.")
         return
 
-    async with SessionLocal() as session:
-        service = AdminService(session)
-        removed, reason = await service.remove_admin(telegram_id)
-        if removed:
-            await session.commit()
+    removed, reason = await services.admin_manage.remove_admin(telegram_id)
 
     if removed:
         await message.answer(f"Админ удален: {telegram_id}")
