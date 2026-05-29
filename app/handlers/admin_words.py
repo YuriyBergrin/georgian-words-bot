@@ -8,7 +8,7 @@ from app.handlers.admin_words_add import router as add_router
 from app.handlers.admin_words_edit import router as edit_router
 from app.handlers.admin_words_import import router as import_router
 from app.handlers.admin_words_search import router as search_router
-from app.handlers.admin_words_shared import IMPORT_MAX_WORDS, import_mode_menu
+from app.handlers.admin_words_shared import EDIT_WORD_TEXT, IMPORT_MAX_WORDS, import_mode_menu
 from app.handlers.common_helpers import CANCEL_TEXT, cancel_menu, ensure_admin_or_reply
 from app.handlers.states import AddWordForm, BulkImportForm, DeleteWordForm, EditWordForm, SearchWordForm
 from app.keyboards.main_menu import get_admin_menu
@@ -54,7 +54,7 @@ async def export_words_handler(message: Message, state: FSMContext) -> None:
     logger.info("admin_action export_words admin_id={} count={}", message.from_user.id, len(rows))
 
 
-@router.message(F.text == "✏️ Редактировать слово")
+@router.message(F.text == EDIT_WORD_TEXT)
 async def edit_word_handler(message: Message, state: FSMContext) -> None:
     if not await ensure_admin_or_reply(message, state):
         return

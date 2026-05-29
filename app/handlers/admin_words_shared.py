@@ -11,6 +11,7 @@ IMPORT_APPLY_TEXT = "💾 Импортировать"
 SEARCH_PREV_TEXT = "⬅️ Назад"
 SEARCH_NEXT_TEXT = "➡️ Вперед"
 DELETE_WORD_TEXT = "🗑 Удалить слово"
+EDIT_WORD_TEXT = "✏️ Редактировать слово"
 SEARCH_PAGE_SIZE = 10
 IMPORT_MAX_WORDS = 50
 
@@ -51,6 +52,6 @@ def search_browse_menu(has_prev: bool, has_next: bool) -> ReplyKeyboardMarkup:
     if has_next:
         row.append(KeyboardButton(text=SEARCH_NEXT_TEXT))
     keyboard: list[list[KeyboardButton]] = [row] if row else []
-    keyboard.append([KeyboardButton(text="✏️ Редактировать слово"), KeyboardButton(text=DELETE_WORD_TEXT)])
+    keyboard.append([KeyboardButton(text=EDIT_WORD_TEXT), KeyboardButton(text=DELETE_WORD_TEXT)])
     keyboard.append([KeyboardButton(text=CANCEL_TEXT)])
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)

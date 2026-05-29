@@ -14,6 +14,24 @@ from app.services.word_service import WordService
 router = Router()
 
 
+async def start_edit_word_flow(message: Message, state: FSMContext, georgian: str) -> None:
+    georgian = georgian.strip()
+    async with SessionLocal() as session:
+        word_service = WordService(session)
+        exists = await word_service.word_exists(georgian)
+        if not exists:
+            await message.answer("Слово не найдено. Введи другое слово или нажми отмену.", reply_markup=cancel_menu())
+            return
+        current_topic = await word_service.get_word_topic_name(georgian)
+
+    await state.update_data(georgian=georgian, current_topic=current_topic)
+    await state.set_state(EditWordForm.georgian_new)
+    await message.answer(
+        f"Текущее грузинское слово: {georgian}\nВведи новое грузинское слово (или отправь текущее без изменений):",
+        reply_markup=cancel_menu(),
+    )
+
+
 @router.message(DeleteWordForm.georgian)
 async def delete_word_handler(message: Message, state: FSMContext) -> None:
     georgian = message.text.strip()
@@ -29,21 +47,7 @@ async def delete_word_handler(message: Message, state: FSMContext) -> None:
 
 @router.message(EditWordForm.georgian)
 async def edit_word_georgian_handler(message: Message, state: FSMContext) -> None:
-    georgian = message.text.strip()
-    async with SessionLocal() as session:
-        word_service = WordService(session)
-        exists = await word_service.word_exists(georgian)
-        if not exists:
-            await message.answer("Слово не найдено. Введи другое слово или нажми отмену.", reply_markup=cancel_menu())
-            return
-        current_topic = await word_service.get_word_topic_name(georgian)
-
-    await state.update_data(georgian=georgian, current_topic=current_topic)
-    await state.set_state(EditWordForm.georgian_new)
-    await message.answer(
-        f"Текущее грузинское слово: {georgian}\nВведи новое грузинское слово (или отправь текущее без изменений):",
-        reply_markup=cancel_menu(),
-    )
+    await start_edit_word_flow(message, state, message.text or "")
 
 
 @router.message(EditWordForm.georgian_new)
